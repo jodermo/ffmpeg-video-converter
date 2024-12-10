@@ -8,7 +8,7 @@ OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 
 # Video parameters
-SCALE="1080:1920"
+SCALE="1920:1080"
 # QUALITY = CRF value (lower = higher quality, larger file size)
 QUALITY="25"           
 # PRESET = FFmpeg preset (slower = better compression)
