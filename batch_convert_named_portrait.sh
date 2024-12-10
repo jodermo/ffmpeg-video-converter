@@ -51,10 +51,10 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         THUMBNAIL_NAME="${THUMBNAIL_BASENAME%.*}"
 
         # Define output files using the original basename for the video
-        OUTPUT_FILE="$OUTPUT_DIR/${ORIGINAL_BASENAME}_optimized.mp4"
+        OUTPUT_FILE="$OUTPUT_DIR/${ORIGINAL_BASENAME}.mp4"
 
         # Define the thumbnail output file name using the CSV thumbnail field
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}_thumbnail.jpg"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}.jpg"
 
         # Convert the video to web-optimized portrait resolution with defined parameters
         ffmpeg -y -i "$INPUT_FILE" \
