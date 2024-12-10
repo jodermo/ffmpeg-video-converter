@@ -7,8 +7,8 @@ FILE_NAMES_CSV="./csv_data/File.csv"
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
-SKIPPED_LOG="./skipped_files.log"
-COMPLETED_LOG="./completed_files.log"
+SKIPPED_LOG="./logs/skipped_files.log"
+COMPLETED_LOG="./logs/completed_files.log"
 
 # Video parameters
 LANDSCAPE_WIDTH="1920"
@@ -39,7 +39,6 @@ normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]*-+[[:space:]]*/-/g' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'
 }
 
-
 # Process videos
 for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Check if the file exists (necessary for globbing)
@@ -54,13 +53,18 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     echo "Processing file: $BASENAME"
     echo "Normalized BASENAME: $NORMALIZED_BASENAME"
 
-    # Try matching directly first
-    MATCHING_LINE=$(grep -i -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
-
-    # If no match, try with the normalized filename
-    if [[ -z "$MATCHING_LINE" ]]; then
-        MATCHING_LINE=$(grep -i -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
-    fi
+    # Search for matches in the CSV
+    MATCHING_LINE=$(awk -F',' -v normalized_basename="$NORMALIZED_BASENAME" '
+    {
+        originalname = $5
+        gsub(/[[:space:]]*-+[[:space:]]*/, "-", originalname)
+        gsub(/[[:space:]]*/, "", originalname)
+        originalname = tolower(originalname)
+        if (originalname == normalized_basename) {
+            print $0
+            exit
+        }
+    }' "$FILE_NAMES_CSV")
 
     if [[ -n "$MATCHING_LINE" ]]; then
         # Extract relevant fields from CSV
