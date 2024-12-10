@@ -58,72 +58,70 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     BASENAME=$(basename "$INPUT_FILE")
     NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
 
-    MATCHING_LINES=$(grep -i -F "$BASENAME" "$FILE_NAMES_CSV")
+    MATCHING_LINE=$(grep -i -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
 
-    if [[ -z "$MATCHING_LINES" ]]; then
-        MATCHING_LINES=$(grep -i -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV")
+    if [[ -z "$MATCHING_LINE" ]]; then
+        MATCHING_LINE=$(grep -i -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
     fi
 
-    if [[ -n "$MATCHING_LINES" ]]; then
-        while IFS= read -r MATCHING_LINE; do
-            ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
-            NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
+    if [[ -n "$MATCHING_LINE" ]]; then
+        ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
+        NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
 
-            if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
-                echo "Skipping $BASENAME: does not match originalname ($NORMALIZED_ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
-                continue
-            fi
+        if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
+            echo "Skipping $BASENAME: does not match originalname ($NORMALIZED_ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
+            continue
+        fi
 
-            IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
-            KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
+        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
+        KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
-            # Remove `.mp4` from the key for thumbnail naming
-            KEY_NO_EXT="${KEY%.mp4}"
+        # Remove `.mp4` from the key for thumbnail naming
+        KEY_NO_EXT="${KEY%.mp4}"
 
-            # Match thumbnail URL from VIDEO_SOURCES_CSV using the key
-            THUMBNAIL_URL=$(get_thumbnail_url "$KEY")
-            THUMBNAIL_NAME=$(basename "$THUMBNAIL_URL")
+        # Match thumbnail URL from VIDEO_SOURCES_CSV using the key
+        THUMBNAIL_URL=$(get_thumbnail_url "$KEY")
+        THUMBNAIL_NAME=$(basename "$THUMBNAIL_URL")
 
-            if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-                THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
-                echo "Warning: No valid thumbnail URL found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
-            fi
+        if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
+            THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
+            echo "Warning: No valid thumbnail URL found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
+        fi
 
-            # Set resolution based on orientation
-            if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
-                WIDTH=$LANDSCAPE_HEIGHT
-                HEIGHT=$LANDSCAPE_WIDTH
-            else
-                WIDTH=$LANDSCAPE_WIDTH
-                HEIGHT=$LANDSCAPE_HEIGHT
-            fi
+        # Set resolution based on orientation
+        if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
+            WIDTH=$LANDSCAPE_HEIGHT
+            HEIGHT=$LANDSCAPE_WIDTH
+        else
+            WIDTH=$LANDSCAPE_WIDTH
+            HEIGHT=$LANDSCAPE_HEIGHT
+        fi
 
-            OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
-            THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
+        OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
 
-            # Convert video
-            ffmpeg -y -i "$INPUT_FILE" \
-                -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
-                -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-                -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || {
-                echo "Error processing video $BASENAME" | tee -a "$SKIPPED_LOG"
-                continue
-            }
+        # Convert video
+        ffmpeg -y -i "$INPUT_FILE" \
+            -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
+            -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
+            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || {
+            echo "Error processing video $BASENAME" | tee -a "$SKIPPED_LOG"
+            continue
+        }
 
-            # Extract thumbnail
-            echo "Generating thumbnail for $BASENAME..." | tee -a "$THUMBNAIL_LOG"
-            ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
+        # Extract thumbnail
+        echo "Generating thumbnail for $BASENAME..." | tee -a "$THUMBNAIL_LOG"
+        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
 
-            if [[ $? -ne 0 ]]; then
-                echo "Error: Failed to create thumbnail for $BASENAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
-                continue
-            fi
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to create thumbnail for $BASENAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
+            continue
+        fi
 
-            # Log success
-            echo "Completed: $BASENAME" | tee -a "$COMPLETED_LOG"
-            echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
-            echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
-        done <<< "$MATCHING_LINES"
+        # Log success
+        echo "Completed: $BASENAME" | tee -a "$COMPLETED_LOG"
+        echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
+        echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
     else
         echo "Skipping $BASENAME: not found in CSV even after normalization." | tee -a "$SKIPPED_LOG"
     fi
