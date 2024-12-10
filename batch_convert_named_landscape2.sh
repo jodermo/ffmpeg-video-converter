@@ -7,11 +7,14 @@ sanitize_filename() {
     local extension="${fileName##*.}"
     # Get file name without extension
     fileName="${fileName%.*}"
-    # Remove spaces and special characters
+    # Remove spaces
+    fileName="${fileName// /_}"
+    # Remove special characters (keep letters, numbers, underscores, and hyphens)
     fileName=$(echo "$fileName" | sed 's/[^a-zA-Z0-9_-]//g')
     # Return sanitized file name with extension
     echo "${fileName}.${extension}"
 }
+
 
 # Paths
 VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
