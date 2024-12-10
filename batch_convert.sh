@@ -76,12 +76,15 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
         KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
+        # Remove `.mp4` from the key for thumbnail naming
+        KEY_NO_EXT="${KEY%.mp4}"
+
         # Match thumbnail URL from VIDEO_SOURCES_CSV using the key
         THUMBNAIL_URL=$(get_thumbnail_url "$KEY")
         THUMBNAIL_NAME=$(basename "$THUMBNAIL_URL")
 
         if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-            THUMBNAIL_NAME="${KEY}_default_thumbnail.jpg"
+            THUMBNAIL_NAME="${KEY_NO_EXT}_default_thumbnail.jpg"
             echo "Warning: No valid thumbnail URL found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
         fi
 
@@ -94,7 +97,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
             HEIGHT=$LANDSCAPE_HEIGHT
         fi
 
-        OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
+        OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
         THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
 
         # Convert video
