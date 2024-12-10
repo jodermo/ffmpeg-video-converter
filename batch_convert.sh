@@ -36,7 +36,7 @@ fi
 
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | tr -d ' ' | tr -d '-'
+    echo "$1" | tr -d ' ' | tr -d '-' | tr -d '_'
 }
 
 # Process videos
@@ -49,7 +49,13 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     BASENAME=$(basename "$INPUT_FILE")
     NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
 
-    MATCHING_LINE=$(grep -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+    # Try matching directly first
+    MATCHING_LINE=$(grep -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+
+    # If no match, try with the normalized filename
+    if [[ -z "$MATCHING_LINE" ]]; then
+        MATCHING_LINE=$(grep -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+    fi
 
     if [[ -n "$MATCHING_LINE" ]]; then
         # Extract relevant fields from CSV
@@ -58,7 +64,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
 
         # Ensure normalized names match
         if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
-            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV." | tee -a "$SKIPPED_LOG"
+            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
             continue
         fi
 
@@ -96,7 +102,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
         echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
     else
-        echo "Skipping $BASENAME: not found in CSV." | tee -a "$SKIPPED_LOG"
+        echo "Skipping $BASENAME: not found in CSV even after normalization." | tee -a "$SKIPPED_LOG"
     fi
 done
 
