@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CSV file with video metadata
-VIDEO_NAMES_CSV="./existing_video_names/File.csv"
+VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
 
 # Input/Output directories
 INPUT_DIR="./input_videos"
@@ -33,20 +33,26 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Extract the filename with extension from the local input file
     BASENAME=$(basename "$INPUT_FILE")
 
-    # Find the matching CSV line that contains the local video filename
+    # Remove spaces from the file name for matching
+    BASENAME_NO_SPACES=$(echo "$BASENAME" | tr -d ' ')
+
+    # Try matching with the CSV using both original and space-removed names
     MATCHING_LINE=$(grep -F "$BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
+    if [[ -z "$MATCHING_LINE" ]]; then
+        MATCHING_LINE=$(grep -F "$BASENAME_NO_SPACES" "$VIDEO_NAMES_CSV" | head -n 1)
+    fi
 
     if [[ -n "$MATCHING_LINE" ]]; then
+        echo "Processing $BASENAME..."
+
         # Extract "originalname" from the CSV
         ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"')
 
         # Check if the current file name matches the "originalname" from the CSV
-        if [[ "$BASENAME" != "$ORIGINALNAME" ]]; then
+        if [[ "$BASENAME" != "$ORIGINALNAME" && "$BASENAME_NO_SPACES" != "$ORIGINALNAME" ]]; then
             echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV."
             continue
         fi
-
-        echo "Processing $BASENAME (matches originalname $ORIGINALNAME)..."
 
         # Extract "portrait" field from the CSV (assuming it's a boolean-like value)
         IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"')
