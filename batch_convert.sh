@@ -26,17 +26,24 @@ THUMBNAIL_QUALITY="2"
 mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
 # Check if CSV exists
-if [[ ! -f "$FILE_NAMES_CSV" ]]; then
-    echo "Error: CSV file '$FILE_NAMES_CSV' not found."
+if [[ ! -f "$FILE_NAMES_CSV" ]] || [[ ! -f "$VIDEO_SOURCES_CSV" ]]; then
+    echo "Error: Required CSV files not found."
     exit 1
 fi
 
 # Clear logs
 > "$SKIPPED_LOG"
 > "$COMPLETED_LOG"
+
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
     echo "$1" | tr -d '[:space:]'
+}
+
+# Function to extract thumbnail name based on key
+get_thumbnail_name() {
+    local key=$1
+    grep -F "$key" "$FILE_NAMES_CSV" | cut -d',' -f11 | tr -d '"'
 }
 
 # Process videos
@@ -67,6 +74,14 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
         KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
+        # Match thumbnail name from video_sources.csv using the key
+        THUMBNAIL_NAME=$(get_thumbnail_name "$KEY")
+
+        if [[ -z "$THUMBNAIL_NAME" ]]; then
+            echo "Skipping $BASENAME: No thumbnail name found for key $KEY in File.csv." | tee -a "$SKIPPED_LOG"
+            continue
+        fi
+
         # Set resolution based on orientation
         if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
             WIDTH=$LANDSCAPE_HEIGHT
@@ -76,8 +91,8 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
             HEIGHT=$LANDSCAPE_HEIGHT
         fi
 
-        OUTPUT_FILE="$OUTPUT_DIR/${KEY}"
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/${KEY}.jpg"
+        OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
 
         # Convert video
         ffmpeg -y -i "$INPUT_FILE" \
@@ -101,4 +116,3 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         echo "Skipping $BASENAME: not found in CSV even after normalization." | tee -a "$SKIPPED_LOG"
     fi
 done
-
