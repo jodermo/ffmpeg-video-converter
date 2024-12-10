@@ -9,7 +9,7 @@ sanitize_filename() {
     fileName="${fileName%.*}"
     # Remove spaces
     fileName="${fileName// /_}"
-    # Remove special characters
+    # Remove special characters except hyphens and underscores
     fileName=$(echo "$fileName" | sed 's/[^a-zA-Z0-9_-]//g')
     # Return sanitized file name with extension
     echo "${fileName}.${extension}"
@@ -46,49 +46,42 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Extract the filename with extension from the local input file
     BASENAME=$(basename "$INPUT_FILE")
 
-    # Find the matching CSV line that contains the video filename
-    MATCHING_LINE=$(grep -F "$BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
+    # Sanitize the filename
+    SANITIZED_BASENAME=$(sanitize_filename "$BASENAME")
 
-    # If not found, try URL-encoding the basename and search again
-    if [[ -z "$MATCHING_LINE" ]]; then
-        ENCODED_BASENAME=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$BASENAME'''))")
-        MATCHING_LINE=$(grep -F "$ENCODED_BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
-    fi
+    # Find the matching CSV line that contains the video filename
+    MATCHING_LINE=$(grep -F "$SANITIZED_BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
 
     if [[ -n "$MATCHING_LINE" ]]; then
-        echo "Found $BASENAME in CSV. Processing..."
+        echo "Found $SANITIZED_BASENAME in CSV. Processing..."
 
-        # Extract the thumbnail URL (second field)
+        # Extract the thumbnail filename from the CSV (second field)
         THUMBNAIL_URL=$(echo "$MATCHING_LINE" | cut -d',' -f2 | tr -d '"')
-
-        # Extract the thumbnail's file name with extension
         THUMBNAIL_FILENAME=$(basename "$THUMBNAIL_URL")
 
-        # Use the thumbnail file name as the base for output video and thumbnail files
-        OUTPUT_FILENAME="${THUMBNAIL_FILENAME%.*}.mp4"
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/$THUMBNAIL_FILENAME"
+        # Define the base name for output files
+        OUTPUT_BASENAME="${THUMBNAIL_FILENAME%.*}"
 
-        # Define the output video file path
-        OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME"
+        # Define output files
+        OUTPUT_FILE="$OUTPUT_DIR/${OUTPUT_BASENAME}.mp4"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${OUTPUT_BASENAME}.jpg"
 
         # Convert the video to web-optimized resolution with defined parameters
         ffmpeg -y -i "$INPUT_FILE" \
             -vf "scale=$SCALE:force_original_aspect_ratio=decrease,pad=$SCALE:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE"
+            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || echo "FFmpeg video conversion failed for $INPUT_FILE"
 
         # Extract a thumbnail at the specified time with defined quality
-        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE"
+        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" || echo "FFmpeg thumbnail extraction failed for $INPUT_FILE"
 
-        echo "Completed: $BASENAME"
+        echo "Completed: $SANITIZED_BASENAME"
         echo "Output Video: $OUTPUT_FILE"
         echo "Thumbnail: $THUMBNAIL_FILE"
+
     else
-        echo "No match found for $BASENAME in CSV. Skipping."
-        continue
+        echo "No match found for $SANITIZED_BASENAME in CSV. File not converted."
     fi
-
-
 done
 
 echo "Batch conversion and thumbnail extraction completed for all videos."
