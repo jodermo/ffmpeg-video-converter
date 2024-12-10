@@ -47,27 +47,14 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         # Extract the original filename from the src URL or fallback to input filename
         ORIGINAL_FILENAME=$(basename "$(echo "$MATCHING_LINE" | cut -d',' -f1 | tr -d '"')")
         ORIGINAL_BASENAME="${ORIGINAL_FILENAME%.*}"
+
+        
     else
         echo "No match found for $BASENAME in CSV. Using input filename as fallback."
         ORIGINAL_BASENAME="${BASENAME%.*}"
     fi
 
-    # Define output files
-    OUTPUT_FILE="$OUTPUT_DIR/${ORIGINAL_BASENAME}.mp4"
-    THUMBNAIL_FILE="$THUMBNAIL_DIR/${ORIGINAL_BASENAME}_thumbnail.jpg"
-
-    # Convert the video to web-optimized resolution with defined parameters
-    ffmpeg -y -i "$INPUT_FILE" \
-        -vf "scale=$SCALE:force_original_aspect_ratio=decrease,pad=$SCALE:(ow-iw)/2:(oh-ih)/2" \
-        -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE"
-
-    # Extract a thumbnail at the specified time with defined quality
-    ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE"
-
-    echo "Completed: $BASENAME"
-    echo "Output Video: $OUTPUT_FILE"
-    echo "Thumbnail: $THUMBNAIL_FILE"
+   
 
 done
 
