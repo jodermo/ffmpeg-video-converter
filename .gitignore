@@ -4,3 +4,4 @@ output_videos/*
 thumbnails/*
 temp/*
 existing_video_names/*
+skipped_files.log
