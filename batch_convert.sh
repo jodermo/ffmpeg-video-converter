@@ -67,6 +67,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         }
     }' "$FILE_NAMES_CSV")
 
+
     if [[ -n "$MATCHING_LINE" ]]; then
         # Extract relevant fields from CSV
         ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
