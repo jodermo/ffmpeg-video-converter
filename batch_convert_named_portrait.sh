@@ -9,9 +9,12 @@ THUMBNAIL_DIR="./thumbnails"
 
 # Video parameters
 SCALE="1080:1920"
-QUALITY="50"           # CRF value (lower = higher quality, larger file size)
-PRESET="medium"          # FFmpeg preset (slower = better compression)
-AUDIO_BITRATE="128k"   # Audio bitrate
+# QUALITY = CRF value (lower = higher quality, larger file size)
+QUALITY="25"           
+# PRESET = FFmpeg preset (slower = better compression)
+PRESET="medium"
+# Audio bitrate    
+AUDIO_BITRATE="128k" 
 
 # Thumbnail parameters
 THUMBNAIL_TIME="00:00:02"
