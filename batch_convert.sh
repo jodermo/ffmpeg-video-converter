@@ -42,10 +42,10 @@ normalize_filename() {
     echo "$1" | tr -d '[:space:]'
 }
 
-# Function to extract thumbnail name based on key
-get_thumbnail_name() {
+# Function to extract thumbnail URL based on key from VIDEO_SOURCES_CSV
+get_thumbnail_url() {
     local key=$1
-    grep -F "$key" "$FILE_NAMES_CSV" | cut -d',' -f11 | tr -d '"'
+    grep -F "$key" "$VIDEO_SOURCES_CSV" | cut -d',' -f2 | tr -d '"' | xargs
 }
 
 # Process videos
@@ -76,11 +76,13 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
         KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
-        # Match thumbnail name from video_sources.csv using the key
-        THUMBNAIL_NAME=$(get_thumbnail_name "$KEY")
+        # Match thumbnail URL from VIDEO_SOURCES_CSV using the key
+        THUMBNAIL_URL=$(get_thumbnail_url "$KEY")
+        THUMBNAIL_NAME=$(basename "$THUMBNAIL_URL")
+
         if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
             THUMBNAIL_NAME="${KEY}_default_thumbnail.jpg"
-            echo "Warning: No valid thumbnail name found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
+            echo "Warning: No valid thumbnail URL found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
         fi
 
         # Set resolution based on orientation
@@ -96,7 +98,6 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
 
         # Convert video
-        echo "Processing video: $BASENAME..." | tee -a "$COMPLETED_LOG"
         ffmpeg -y -i "$INPUT_FILE" \
             -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
