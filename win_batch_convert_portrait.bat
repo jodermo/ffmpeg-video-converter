@@ -34,10 +34,10 @@ FOR %%F IN ("%INPUT_DIR%\*.*") DO (
     SET "FILENAME=%%~nF"
     
     REM Set the output file path
-    SET "OUTPUT_FILE=%OUTPUT_DIR%\!FILENAME!_optimized.mp4"
+    SET "OUTPUT_FILE=%OUTPUT_DIR%\!FILENAME!.mp4"
     
     REM Set the thumbnail file path
-    SET "THUMBNAIL_FILE=%THUMBNAIL_DIR%\!FILENAME!_thumbnail.jpg"
+    SET "THUMBNAIL_FILE=%THUMBNAIL_DIR%\!FILENAME!.jpg"
     
     REM Display current processing status
     echo Processing: %%~nF
