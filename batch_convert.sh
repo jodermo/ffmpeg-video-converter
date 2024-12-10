@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CSV file with video metadata
-VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
+VIDEO_NAMES_CSV="./existing_video_names/Data.csv"
 
 # Input/Output directories
 INPUT_DIR="./input_videos"
