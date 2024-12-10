@@ -12,7 +12,7 @@ SCALE="1080:1920"
 # QUALITY = CRF value (lower = higher quality, larger file size)
 QUALITY="25"           
 # PRESET = FFmpeg preset (slower = better compression)
-PRESET="medium"
+PRESET="slow"
 # Audio bitrate    
 AUDIO_BITRATE="128k" 
 
