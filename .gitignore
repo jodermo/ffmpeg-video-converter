@@ -2,3 +2,5 @@ input_videos_landscape/*
 input_videos_portrait/*
 output_videos/*
 thumbnails/*
+temp/*
+existing_video_names/video_names.csv
