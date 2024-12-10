@@ -31,9 +31,8 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Extract the filename with extension
     BASENAME=$(basename "$INPUT_FILE")
 
-    # Use grep to check if CSV contains a line ending with this filename
-    # Using -E for extended regex and $ to anchor at the end of the line
-    if grep -E -q "${BASENAME}$" "$VIDEO_NAMES_CSV"; then
+    # Check if the CSV file contains the filename anywhere in its lines
+    if grep -F -q "$BASENAME" "$VIDEO_NAMES_CSV"; then
         echo "Found $BASENAME in CSV. Processing..."
 
         # Remove the extension for output naming
