@@ -10,7 +10,7 @@ THUMBNAIL_DIR="./thumbnails"
 # Video parameters
 SCALE="1920:1080"
 # QUALITY = CRF value (lower = higher quality, larger file size)
-QUALITY="50"           
+QUALITY="30"           
 # PRESET = FFmpeg preset (slower = better compression)
 PRESET="slow"
 # Audio bitrate    
