@@ -1,6 +1,7 @@
 #!/bin/bash
 
-VIDEO_NAMES_CSV="./existing_video_names/File.csv"
+# CSV file with video metadata
+VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
 
 # Input/Output directories
 INPUT_DIR="./input_videos"
@@ -8,10 +9,10 @@ OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 
 # Video parameters
-WIDTH="1920"
-HEIGHT="1080"
+LANDSCAPE_WIDTH="1920"
+LANDSCAPE_HEIGHT="1080"
 QUALITY="30"        # CRF value (lower = higher quality, larger file size)
-PRESET="slow"        # FFmpeg preset (slower = better compression)git pull
+PRESET="slow"        # FFmpeg preset (slower = better compression)
 AUDIO_BITRATE="128k" # Audio bitrate
 
 # Thumbnail parameters
@@ -29,42 +30,46 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         continue
     fi
 
-    # Extract the filename with extension from local input file
+    # Extract the filename with extension from the local input file
     BASENAME=$(basename "$INPUT_FILE")
 
     # Find the matching CSV line that contains the local video filename
     MATCHING_LINE=$(grep -F "$BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
 
-    # If not found, try URL-encoding the basename and search again
-    if [[ -z "$MATCHING_LINE" ]]; then
-        ENCODED_BASENAME=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$BASENAME'))")
-        MATCHING_LINE=$(grep -F "$ENCODED_BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
-    fi
-
     if [[ -n "$MATCHING_LINE" ]]; then
-        echo "Found $BASENAME in CSV. Processing..."
+        # Extract "originalname" from the CSV
+        ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"')
 
-        THUMBNAIL_URL=$(echo "$MATCHING_LINE" | cut -d',' -f2 | tr -d '"')
+        # Check if the current file name matches the "originalname" from the CSV
+        if [[ "$BASENAME" != "$ORIGINALNAME" ]]; then
+            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV."
+            continue
+        fi
 
-        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"')
+        echo "Processing $BASENAME (matches originalname $ORIGINALNAME)..."
 
-        # Extract the original filename from the src URL for output naming
-        ORIGINAL_FILENAME=$(basename "$(echo "$MATCHING_LINE" | cut -d',' -f1 | tr -d '"')")
-        ORIGINAL_BASENAME="${ORIGINAL_FILENAME%.*}"
+        # Extract "portrait" field from the CSV (assuming it's a boolean-like value)
+        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"')
 
-        # Extract the thumbnail's base name from the URL
-        THUMBNAIL_BASENAME=$(basename "$THUMBNAIL_URL")
-        THUMBNAIL_NAME="${THUMBNAIL_BASENAME%.*}"
+        # Extract the "key" field for naming output files
+        KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"')
 
-        # Define output files using the original basename for the video
-        OUTPUT_FILE="$OUTPUT_DIR/${ORIGINAL_BASENAME}.mp4"
+        # Determine the scale parameters based on the portrait status
+        if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
+            WIDTH=$LANDSCAPE_HEIGHT
+            HEIGHT=$LANDSCAPE_WIDTH
+        else
+            WIDTH=$LANDSCAPE_WIDTH
+            HEIGHT=$LANDSCAPE_HEIGHT
+        fi
 
-        # Define the thumbnail output file name using the CSV thumbnail field
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}.jpg"
+        # Define output files using the key
+        OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${KEY}.jpg"
 
-        # Convert the video to web-optimized portrait resolution with defined parameters
+        # Convert the video to the desired resolution with specified parameters
         ffmpeg -y -i "$INPUT_FILE" \
-            -vf "scale=$SCALE:force_original_aspect_ratio=decrease,pad=$SCALE:(ow-iw)/2:(oh-ih)/2" \
+            -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
             -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE"
 
@@ -72,13 +77,13 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE"
 
         echo "Completed: $BASENAME"
-        echo "Thumbnail named using CSV field: $THUMBNAIL_FILE"
-
+        echo "Output video: $OUTPUT_FILE"
+        echo "Thumbnail: $THUMBNAIL_FILE"
     else
         echo "Skipping $BASENAME as it is not found in the CSV."
     fi
 done
 
 echo "Batch conversion and thumbnail extraction completed for all matching videos."
-echo "Optimized portrait videos are in the '$OUTPUT_DIR' directory."
+echo "Optimized videos are in the '$OUTPUT_DIR' directory."
 echo "Thumbnails are in the '$THUMBNAIL_DIR' directory."
