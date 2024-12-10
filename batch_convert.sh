@@ -48,6 +48,11 @@ get_thumbnail_name() {
     grep -F "$key" "$FILE_NAMES_CSV" | cut -d',' -f11 | tr -d '"'
 }
 
+normalize_thumbnail_name() {
+    echo "$1" | tr -d '.mp4'
+}
+
+
 # Process videos
 for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Check if the file exists (necessary for globbing)
@@ -78,9 +83,9 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
 
         # Match thumbnail name from video_sources.csv using the key
         THUMBNAIL_NAME=$(get_thumbnail_name "$KEY")
-
+        THUMBNAIL_KEY=$(normalize_thumbnail_name "$KEY")
         if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-            THUMBNAIL_NAME="${KEY}_default_thumbnail.jpg"
+            THUMBNAIL_NAME="${THUMBNAIL_KEY}_default_thumbnail.jpg"
             echo "Warning: No valid thumbnail name found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
         fi
 
@@ -93,7 +98,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
             HEIGHT=$LANDSCAPE_HEIGHT
         fi
 
-        OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
+        OUTPUT_FILE="$OUTPUT_DIR/${KEY}"
         THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
 
         # Convert video
