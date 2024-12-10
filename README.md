@@ -10,8 +10,8 @@ This scripts are designed to process all video files in a specified input direct
     - [input_videos_portrait/](./input_videos_portrait) : *Portrait videos to convert*
     - [output_videos/](./output_videos) : *Converted files*
     - [thumbnails/](./thumbnails): *Extracted thumbnails*
-    - [batch_convert_named_landscape.sh](./batch_convert_named_landscape.sh): *Bash file for linus and mac*
-    - [batch_convert_named_portrait.sh](./batch_convert_named_portrait.sh): *Bash file for linus and mac*
+    - [batch_convert_named_landscape.sh](./batch_convert_named_landscape.sh): *Only convert video if name exist in CSV, rename thumbnail to name from CSV
+    - [batch_convert_named_portrait.sh](./batch_convert_named_portrait.sh): *Only convert video if name exist in CSV, rename thumbnail to name from CSV*
     - [linux_batch_convert_landscape.sh](./linux_batch_convert_landscape.sh): *Bash file for linus and mac*
     - [linux_batch_convert_portrait.sh](./linux_batch_convert_portrait.sh): *Bash file for linus and mac*
     - [win_batch_convert_landscape.bat](./win_batch_convert_landscape.bat): *Batsh file for windows*
