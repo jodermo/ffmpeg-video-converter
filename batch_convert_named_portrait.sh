@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VIDEO_NAMES_CSV="./existing_video_names/data-1733845421332.csv"
+VIDEO_NAMES_CSV="./existing_video_names/video_names.csv"
 
 # Input/Output directories
 INPUT_DIR="./input_videos_portrait"
