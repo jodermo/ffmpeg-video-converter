@@ -5,6 +5,6 @@ output_videos/*
 thumbnails/*
 temp/*
 existing_video_names/*
-logs/*
+
 skipped_files.log
 completed_files.log
