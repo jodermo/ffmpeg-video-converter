@@ -28,8 +28,8 @@ for INPUT_FILE in "$INPUT_DIR"/*; do
     FILENAME=$(basename "$INPUT_FILE" | sed 's/\.[^.]*$//')
 
     # Set the output file paths
-    OUTPUT_FILE="$OUTPUT_DIR/${FILENAME}_optimized.mp4"
-    THUMBNAIL_FILE="$THUMBNAIL_DIR/${FILENAME}_thumbnail.jpg"
+    OUTPUT_FILE="$OUTPUT_DIR/${FILENAME}.mp4"
+    THUMBNAIL_FILE="$THUMBNAIL_DIR/${FILENAME}.jpg"
 
     # Display current processing status
     echo "Processing: $FILENAME"
