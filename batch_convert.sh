@@ -34,9 +34,9 @@ fi
 > "$SKIPPED_LOG"
 > "$COMPLETED_LOG"
 
-# Function to normalize filenames (remove spaces, dashes, underscores, etc.)
+# Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | tr -d ' ' | tr -d '-' | tr -d '_'
+    echo "$1" | tr -d ' ' | tr -d '-'
 }
 
 # Process videos
@@ -49,20 +49,19 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     BASENAME=$(basename "$INPUT_FILE")
     NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
 
-    MATCHING_LINE=""
-
-    # Iterate through the CSV to perform fuzzy matching
-    while IFS=',' read -r id userId name filename originalname mimetype destination path size created thumbnail location bucket key type progressStatus views topixId portrait; do
-        # Normalize the `originalname` column
-        NORMALIZED_ORIGINALNAME=$(normalize_filename "$originalname")
-        if [[ "$NORMALIZED_BASENAME" == "$NORMALIZED_ORIGINALNAME" ]]; then
-            MATCHING_LINE="$id,$userId,$name,$filename,$originalname,$mimetype,$destination,$path,$size,$created,$thumbnail,$location,$bucket,$key,$type,$progressStatus,$views,$topixId,$portrait"
-            break
-        fi
-    done < <(tail -n +2 "$FILE_NAMES_CSV") # Skip the header row
+    MATCHING_LINE=$(grep -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
 
     if [[ -n "$MATCHING_LINE" ]]; then
-        # Extract relevant fields from the matching line
+        # Extract relevant fields from CSV
+        ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
+        NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
+
+        # Ensure normalized names match
+        if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
+            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV." | tee -a "$SKIPPED_LOG"
+            continue
+        fi
+
         IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
         KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
@@ -97,7 +96,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
         echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
     else
-        echo "Skipping $BASENAME: not found in CSV after normalization." | tee -a "$SKIPPED_LOG"
+        echo "Skipping $BASENAME: not found in CSV." | tee -a "$SKIPPED_LOG"
     fi
 done
 
