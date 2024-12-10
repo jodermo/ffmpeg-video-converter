@@ -36,7 +36,7 @@ fi
 
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | sed -E 's/[[:space:]]*-+[[:space:]]*/-/g' | sed -E 's/[[:space:]]+//g' | tr '[:upper:]' '[:lower:]'
+    echo "$1" | tr -d ' ' | tr -d '-' | tr -d '_'
 }
 
 
