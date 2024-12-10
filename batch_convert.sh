@@ -33,7 +33,6 @@ fi
 # Clear logs
 > "$SKIPPED_LOG"
 > "$COMPLETED_LOG"
-
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
     echo "$1" | tr -d ' ' | tr -d '-' | tr -d '_'
@@ -106,6 +105,3 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     fi
 done
 
-echo "Batch processing completed."
-echo "Skipped files logged in '$SKIPPED_LOG'."
-echo "Completed files logged in '$COMPLETED_LOG'."
