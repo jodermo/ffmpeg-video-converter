@@ -36,7 +36,7 @@ fi
 
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | tr -d '[:space:]-_' | tr '[:upper:]' '[:lower:]'
+    echo "$1" | sed 's/[^a-zA-Z0-9.]//g' | tr '[:upper:]' '[:lower:]'
 }
 
 # Process videos
