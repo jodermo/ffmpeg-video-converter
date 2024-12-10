@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CSV file with video metadata
-VIDEO_NAMES_CSV="./existing_video_names/Files.csv"
+FILE_NAMES_CSV="./existing_video_names/File.csv"
 
 # Input/Output directories
 INPUT_DIR="./input_videos"
@@ -37,9 +37,9 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     BASENAME_NO_SPACES=$(echo "$BASENAME" | tr -d ' ')
 
     # Try matching with the CSV using both original and space-removed names
-    MATCHING_LINE=$(grep -F "$BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
+    MATCHING_LINE=$(grep -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
     if [[ -z "$MATCHING_LINE" ]]; then
-        MATCHING_LINE=$(grep -F "$BASENAME_NO_SPACES" "$VIDEO_NAMES_CSV" | head -n 1)
+        MATCHING_LINE=$(grep -F "$BASENAME_NO_SPACES" "$FILE_NAMES_CSV" | head -n 1)
     fi
 
     if [[ -n "$MATCHING_LINE" ]]; then
