@@ -18,7 +18,8 @@ AUDIO_BITRATE="128k"
 
 # Thumbnail parameters
 THUMBNAIL_TIME="00:00:02"
-THUMBNAIL_QUALITY="2"  # Lower value = higher quality
+# THUMBNAIL_QUALITY = Lower value = higher quality
+THUMBNAIL_QUALITY="2"  
 
 # Create output and thumbnail directories if they don't exist
 mkdir -p "$OUTPUT_DIR"
