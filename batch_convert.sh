@@ -22,7 +22,7 @@ THUMBNAIL_TIME="00:00:04"
 THUMBNAIL_QUALITY="2"
 
 # Ensure directories exist
-mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR" "$(dirname "$SKIPPED_LOG")"
 
 # Check if CSV exists
 if [[ ! -f "$FILE_NAMES_CSV" ]]; then
