@@ -31,29 +31,41 @@ if [[ ! -f "$FILE_NAMES_CSV" ]]; then
 fi
 
 # Clear logs
-echo "" > "$SKIPPED_LOG"
-echo "" > "$COMPLETED_LOG"
+> "$SKIPPED_LOG"
+> "$COMPLETED_LOG"
+
+# Function to normalize filenames (remove spaces, dashes, etc.)
+normalize_filename() {
+    echo "$1" | tr -d ' ' | tr -d '-'
+}
 
 # Process videos
-for INPUT_FILE in "$INPUT_DIR"/*; do
+for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
+    # Check if the file exists (necessary for globbing)
     if [[ ! -f "$INPUT_FILE" ]]; then
         continue
     fi
 
     BASENAME=$(basename "$INPUT_FILE")
-    TRIMMED_BASENAME=$(echo "$BASENAME" | xargs)
+    NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
 
-    MATCHING_LINE=$(grep -F "$TRIMMED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+    MATCHING_LINE=$(grep -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+
     if [[ -n "$MATCHING_LINE" ]]; then
+        # Extract relevant fields from CSV
         ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
-        if [[ "$TRIMMED_BASENAME" != "$ORIGINALNAME" ]]; then
+        NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
+
+        # Ensure normalized names match
+        if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
             echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV." | tee -a "$SKIPPED_LOG"
             continue
         fi
 
-        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"')
-        KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"')
+        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
+        KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
+        # Set resolution based on orientation
         if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
             WIDTH=$LANDSCAPE_HEIGHT
             HEIGHT=$LANDSCAPE_WIDTH
@@ -65,6 +77,7 @@ for INPUT_FILE in "$INPUT_DIR"/*; do
         OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
         THUMBNAIL_FILE="$THUMBNAIL_DIR/${KEY}.jpg"
 
+        # Convert video
         ffmpeg -y -i "$INPUT_FILE" \
             -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
@@ -73,6 +86,7 @@ for INPUT_FILE in "$INPUT_DIR"/*; do
             continue
         }
 
+        # Extract thumbnail
         ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" || {
             echo "Error creating thumbnail for $BASENAME" | tee -a "$SKIPPED_LOG"
             continue
