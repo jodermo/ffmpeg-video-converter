@@ -59,7 +59,7 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
 
         if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
-            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
+            echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV after normalization: $NORMALIZED_BASENAME $NORMALIZED_ORIGINALNAME" | tee -a "$SKIPPED_LOG"
             continue
         fi
 
