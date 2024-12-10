@@ -34,7 +34,11 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Find the matching CSV line that contains the local video filename
     MATCHING_LINE=$(grep -F "$BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
 
-
+    # If not found, try URL-encoding the basename and search again
+    if [[ -z "$MATCHING_LINE" ]]; then
+        ENCODED_BASENAME=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$BASENAME'''))")
+        MATCHING_LINE=$(grep -F "$ENCODED_BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
+    fi
 
     # Determine the output filename
     if [[ -n "$MATCHING_LINE" ]]; then
