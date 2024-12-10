@@ -3,12 +3,12 @@
 VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
 
 # Input/Output directories
-INPUT_DIR="./input_videos_portrait"
+INPUT_DIR="./input_videos_landscape"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 
 # Video parameters
-SCALE="1080:1920"
+SCALE="1920:1080"
 QUALITY="25"        # CRF value (lower = higher quality, larger file size)
 PRESET="slow"        # FFmpeg preset (slower = better compression)
 AUDIO_BITRATE="128k" # Audio bitrate
