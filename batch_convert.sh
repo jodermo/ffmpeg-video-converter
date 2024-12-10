@@ -7,8 +7,8 @@ FILE_NAMES_CSV="./csv_data/File.csv"
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
-SKIPPED_LOG="./logs/skipped_files.log"
-COMPLETED_LOG="./logs/completed_files.log"
+SKIPPED_LOG="./skipped_files.log"
+COMPLETED_LOG="./completed_files.log"
 
 # Video parameters
 LANDSCAPE_WIDTH="1920"
@@ -22,7 +22,7 @@ THUMBNAIL_TIME="00:00:04"
 THUMBNAIL_QUALITY="2"
 
 # Ensure directories exist
-mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR" "$(dirname "$SKIPPED_LOG")"
+mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
 # Check if CSV exists
 if [[ ! -f "$FILE_NAMES_CSV" ]]; then
@@ -33,12 +33,10 @@ fi
 # Clear logs
 > "$SKIPPED_LOG"
 > "$COMPLETED_LOG"
-
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | tr -d ''
+    echo "$1" | tr -d '[:space:]-_' | tr '[:upper:]' '[:lower:]'
 }
-
 
 # Process videos
 for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
@@ -50,33 +48,16 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     BASENAME=$(basename "$INPUT_FILE")
     NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
 
-    # Log the normalized base name for debugging
-    echo "Processing file: $BASENAME"
-    echo "Normalized BASENAME: $NORMALIZED_BASENAME"
+    MATCHING_LINE=$(grep -i -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
 
-    # Search for matches in the CSV
-    MATCHING_LINE=$(awk -F',' -v normalized_basename="$NORMALIZED_BASENAME" '
-    {
-        originalname = $5
-        gsub(/[[:space:]]*-+[[:space:]]*/, "-", originalname)
-        gsub(/[[:space:]]*/, "", originalname)
-        originalname = tolower(originalname)
-        if (originalname == normalized_basename) {
-            print $0
-            exit
-        }
-    }' "$FILE_NAMES_CSV")
-
+    if [[ -z "$MATCHING_LINE" ]]; then
+        MATCHING_LINE=$(grep -i -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+    fi
 
     if [[ -n "$MATCHING_LINE" ]]; then
-        # Extract relevant fields from CSV
         ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
         NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
 
-        echo "Original Name from CSV: $ORIGINALNAME"
-        echo "Normalized ORIGINALNAME: $NORMALIZED_ORIGINALNAME"
-
-        # Ensure normalized names match
         if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
             echo "Skipping $BASENAME: does not match originalname ($ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
             continue
@@ -120,6 +101,3 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     fi
 done
 
-echo "Batch processing completed."
-echo "Skipped files logged in '$SKIPPED_LOG'."
-echo "Completed files logged in '$COMPLETED_LOG'."
