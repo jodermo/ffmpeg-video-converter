@@ -9,12 +9,13 @@ sanitize_filename() {
     fileName="${fileName%.*}"
     # Remove spaces
     fileName="${fileName// /_}"
-    # Remove special characters except hyphens and underscores
-    fileName=$(echo "$fileName" | sed 's/[^a-zA-Z0-9_-]//g')
+    # Remove special characters
+    fileName=$(echo "$fileName" | sed 's/[^a-zA-Z ]//g')
     # Return sanitized file name with extension
     echo "${fileName}.${extension}"
 }
 
+# Example usage in the script
 VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
 
 # Input/Output directories
@@ -49,31 +50,28 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     # Sanitize the filename
     SANITIZED_BASENAME=$(sanitize_filename "$BASENAME")
 
-    # Find the matching CSV line that contains the video filename
+    # Find the matching CSV line that contains the sanitized video filename
     MATCHING_LINE=$(grep -F "$SANITIZED_BASENAME" "$VIDEO_NAMES_CSV" | head -n 1)
 
     if [[ -n "$MATCHING_LINE" ]]; then
         echo "Found $SANITIZED_BASENAME in CSV. Processing..."
+        # Extract the original filename from the src URL or fallback to sanitized basename
+        ORIGINAL_FILENAME=$(basename "$(echo "$MATCHING_LINE" | cut -d',' -f1 | tr -d '"')")
+        ORIGINAL_BASENAME=$(sanitize_filename "${ORIGINAL_FILENAME%.*}")
 
-        # Extract the thumbnail filename from the CSV (second field)
-        THUMBNAIL_URL=$(echo "$MATCHING_LINE" | cut -d',' -f2 | tr -d '"')
-        THUMBNAIL_FILENAME=$(basename "$THUMBNAIL_URL")
-
-        # Define the base name for output files
-        OUTPUT_BASENAME="${THUMBNAIL_FILENAME%.*}"
 
         # Define output files
-        OUTPUT_FILE="$OUTPUT_DIR/${OUTPUT_BASENAME}.mp4"
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/${OUTPUT_BASENAME}.jpg"
+        OUTPUT_FILE="$OUTPUT_DIR/${ORIGINAL_BASENAME}.mp4"
+        THUMBNAIL_FILE="$THUMBNAIL_DIR/${ORIGINAL_BASENAME}.jpg"
 
         # Convert the video to web-optimized resolution with defined parameters
         ffmpeg -y -i "$INPUT_FILE" \
             -vf "scale=$SCALE:force_original_aspect_ratio=decrease,pad=$SCALE:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || echo "FFmpeg video conversion failed for $INPUT_FILE"
+            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE"
 
         # Extract a thumbnail at the specified time with defined quality
-        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" || echo "FFmpeg thumbnail extraction failed for $INPUT_FILE"
+        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE"
 
         echo "Completed: $SANITIZED_BASENAME"
         echo "Output Video: $OUTPUT_FILE"
@@ -82,6 +80,9 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
     else
         echo "No match found for $SANITIZED_BASENAME in CSV. File not converted."
     fi
+
+   
+
 done
 
 echo "Batch conversion and thumbnail extraction completed for all videos."
