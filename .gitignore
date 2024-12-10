@@ -6,3 +6,4 @@ thumbnails/*
 temp/*
 existing_video_names/*
 skipped_files.log
+completed_files.log

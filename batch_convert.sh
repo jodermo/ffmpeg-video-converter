@@ -8,6 +8,7 @@ INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 SKIPPED_LOG="./skipped_files.log"
+COMPLETED_LOG="./completed_files.log"
 
 # Video parameters
 LANDSCAPE_WIDTH="1920"
@@ -29,8 +30,9 @@ if [[ ! -f "$FILE_NAMES_CSV" ]]; then
     exit 1
 fi
 
-# Clear skipped files log
+# Clear logs
 echo "" > "$SKIPPED_LOG"
+echo "" > "$COMPLETED_LOG"
 
 # Process videos
 for INPUT_FILE in "$INPUT_DIR"/*; do
@@ -76,12 +78,14 @@ for INPUT_FILE in "$INPUT_DIR"/*; do
             continue
         }
 
-        echo "Completed: $BASENAME"
-        echo "Output video: $OUTPUT_FILE"
-        echo "Thumbnail: $THUMBNAIL_FILE"
+        echo "Completed: $BASENAME" | tee -a "$COMPLETED_LOG"
+        echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
+        echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
     else
         echo "Skipping $BASENAME: not found in CSV." | tee -a "$SKIPPED_LOG"
     fi
 done
 
-echo "Batch processing completed. Logs available in '$SKIPPED_LOG'."
+echo "Batch processing completed."
+echo "Skipped files logged in '$SKIPPED_LOG'."
+echo "Completed files logged in '$COMPLETED_LOG'."
