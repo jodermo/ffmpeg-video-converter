@@ -35,7 +35,7 @@ fi
 > "$COMPLETED_LOG"
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
-    echo "$1" | tr -d '[:space:]-_' | tr '[:upper:]' '[:lower:]'
+    echo "$1" | tr -d '[:space:]'
 }
 
 # Process videos
