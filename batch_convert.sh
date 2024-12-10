@@ -10,6 +10,7 @@ OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 SKIPPED_LOG="./logs/skipped_files.log"
 COMPLETED_LOG="./logs/completed_files.log"
+THUMBNAIL_LOG="./logs/generated_thumbnails.log"
 
 # Video parameters
 LANDSCAPE_WIDTH="1920"
@@ -34,6 +35,7 @@ fi
 # Clear logs
 > "$SKIPPED_LOG"
 > "$COMPLETED_LOG"
+> "$THUMBNAIL_LOG"
 
 # Function to normalize filenames (remove spaces, dashes, etc.)
 normalize_filename() {
@@ -77,9 +79,9 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         # Match thumbnail name from video_sources.csv using the key
         THUMBNAIL_NAME=$(get_thumbnail_name "$KEY")
 
-        if [[ -z "$THUMBNAIL_NAME" ]]; then
-            echo "Skipping $BASENAME: No thumbnail name found for key $KEY in File.csv." | tee -a "$SKIPPED_LOG"
-            continue
+        if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
+            THUMBNAIL_NAME="${KEY}_default_thumbnail.jpg"
+            echo "Warning: No valid thumbnail name found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
         fi
 
         # Set resolution based on orientation
@@ -104,11 +106,15 @@ for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
         }
 
         # Extract thumbnail
-        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" || {
-            echo "Error creating thumbnail for $BASENAME" | tee -a "$SKIPPED_LOG"
-            continue
-        }
+        echo "Generating thumbnail for $BASENAME..." | tee -a "$THUMBNAIL_LOG"
+        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
 
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to create thumbnail for $BASENAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
+            continue
+        fi
+
+        # Log success
         echo "Completed: $BASENAME" | tee -a "$COMPLETED_LOG"
         echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
         echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
