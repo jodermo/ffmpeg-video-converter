@@ -5,10 +5,13 @@ This scripts are designed to process all video files in a specified input direct
 ### File structure
 
 - converter/
+    - [existing_video_names](./existing_video_names) : *Drop CSV with existing video sources here*
     - [input_videos_landscape/](./input_videos_landscape) : *Landscape videos to convert*
     - [input_videos_portrait/](./input_videos_portrait) : *Portrait videos to convert*
     - [output_videos/](./output_videos) : *Converted files*
     - [thumbnails/](./thumbnails): *Extracted thumbnails*
+        - [batch_convert_named_landscape.sh](./batch_convert_named_landscape.sh): *Bash file for linus and mac*
+    - [batch_convert_named_portrait.sh](./batch_convert_named_portrait.sh): *Bash file for linus and mac*
     - [linux_batch_convert_landscape.sh](./linux_batch_convert_landscape.sh): *Bash file for linus and mac*
     - [linux_batch_convert_portrait.sh](./linux_batch_convert_portrait.sh): *Bash file for linus and mac*
     - [win_batch_convert_landscape.bat](./win_batch_convert_landscape.bat): *Batsh file for windows*
@@ -16,12 +19,20 @@ This scripts are designed to process all video files in a specified input direct
 
 1. Check the Script's Permissions
 Make sure the script has executable permissions. Run:
+    - `chmod +x batch_convert_named_landscape.sh`
+    - `chmod +x batch_convert_named_portrait.sh`
     - `chmod +x linux_batch_convert_landscape.sh`
     - `chmod +x linux_batch_convert_portrait.sh`
-2. Run Script
-Make sure the script has executable permissions. Run:
+
+2. Run Script (with video source CSV)
+    - Drop `video_sources.csv` to [existing_video_names/](./existing_video_names)
+    - Landscape: `bash batch_convert_named_landscape.sh`
+    - Portrait `bash batch_convert_named_portrait.sh`
+
+3. Run Script (without video source CSV)
     - Landscape: `bash linux_batch_convert_landscape.sh`
     - Portrait `bash linux_batch_convert_portrait.sh`
+
 
 
 
