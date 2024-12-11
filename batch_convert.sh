@@ -73,11 +73,7 @@ normalize_name() {
     # Step 1: Decode URI-encoded characters
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Step 2: Fix misencoded characters (e.g., UTF-8 issues from CSV)
-    filename=$(echo "$filename" |
-        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |  # Fix common UTF-8 encoding issues
-        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/\'/g; s/â€™/\'/g; s/â€“/-/g; s/â€”/-/g'        # Fix fancy quotes and dashes
-    )
+
 
     # Step 3: Replace German Umlauts and other special characters
     filename=$(echo "$filename" |
