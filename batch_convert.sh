@@ -143,7 +143,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     if [[ -z "$originalname" ]]; then
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        continue
+        $originalname = $src_filename;
     fi
 
     # Search for the video file in INPUT_DIR
