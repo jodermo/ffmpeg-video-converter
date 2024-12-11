@@ -14,6 +14,7 @@ get_video_file() {
     local src="$2"
     local match_found=false
 
+    # Check for an exact match
     while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
         if [[ "$file_id_row" == "id" ]]; then
             continue
@@ -21,7 +22,7 @@ get_video_file() {
 
         # Trim whitespace and remove quotes
         file_id_row=$(echo "$file_id_row" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-        echo "Comparing File ID: '$file_id' with ID: '$file_id_row'"
+        # echo "Comparing File ID: '$file_id' with ID: '$file_id_row'"
 
         if [[ "$file_id" == "$file_id_row" ]]; then
             echo "Match Found for File ID: $file_id"
@@ -32,10 +33,32 @@ get_video_file() {
         fi
     done < <(cat "$FILE_NAMES_CSV") # Ensure clean environment for IFS
 
+    # If no exact match is found, check if key is included in src
     if [[ "$match_found" == false ]]; then
-        echo "No match found for File ID: $file_id"
+        echo "No exact match found for File ID: $file_id. Searching for partial matches..."
+        while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
+            if [[ "$key" == "key" ]]; then
+                continue
+            fi
+
+            # Trim whitespace and remove quotes
+            key=$(echo "$key" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            if [[ "$src" == *"$key"* ]]; then
+                echo "Partial Match Found!"
+                echo "File Key: $key is included in Source: $src"
+                echo "Original Name: $originalname"
+                match_found=true
+                break
+            fi
+        done < <(cat "$FILE_NAMES_CSV")
+    fi
+
+    if [[ "$match_found" == false ]]; then
+        echo "No match found for File ID: $file_id in Source: $src"
     fi
 }
+
 
 # Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
