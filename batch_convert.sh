@@ -111,7 +111,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
 
     # Locate video file
-    video_file=$(find "$INPUT_DIR" -type f -name "*${file_id}*" -o -name "*${key}*" | head -n 1)
+    video_file=$(find "$INPUT_DIR" -type f \( -name "*${file_id}*" -o -name "*${key}*" -o -name "*.mp4" \) | head -n 1)
     if [[ -n "$video_file" ]]; then
         # Determine video orientation
         resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
