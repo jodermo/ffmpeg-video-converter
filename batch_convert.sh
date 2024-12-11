@@ -1,19 +1,19 @@
 #!/bin/bash
 
+# File Paths
 FILE_NAMES_CSV="./csv_data/File.csv"
 VIDEO_SOURCES_CSV="./csv_data/video_sources.csv"
-
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
-
 LOG_DIR="./logs"
+
 SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 COMPLETED_LOG="$LOG_DIR/completed_files.log"
 THUMBNAIL_LOG="$LOG_DIR/generated_thumbnails.log"
 
-# Ensure log directory exists
-mkdir -p "$LOG_DIR"
+# Ensure directories exist
+mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
 # Video parameters
 WIDTH="1920"
@@ -26,12 +26,13 @@ AUDIO_BITRATE="128k" # Audio bitrate
 THUMBNAIL_TIME="00:00:02"
 THUMBNAIL_QUALITY="2"  # Lower value = higher quality
 
+# Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
     exit 1
 fi
 
-# Function to find video file details
+# Function to check for a matching video file
 get_video_file() {
     local file_id="$1"
     local src="$2"
@@ -60,11 +61,9 @@ get_video_file() {
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
+    local is_portrait="$2"
     local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}")-converted.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}")-thumbnail.jpg"
-    local is_portrait="$2"
-
-    mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
     # Determine scale based on orientation
     local scale=""
@@ -112,7 +111,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
     if [[ -n "$video_file" ]]; then
-        # Check if video is portrait or landscape
+        # Determine video orientation
         resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
         width=$(echo "$resolution" | cut -d',' -f1)
         height=$(echo "$resolution" | cut -d',' -f2)
@@ -122,6 +121,10 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         else
             is_portrait="false"
         fi
+
+        # Extract file name from thumbnail URL
+        thumbnail_file=$(basename "$thumbnail")
+        echo "Extracted Thumbnail File: $thumbnail_file" | tee -a "$COMPLETED_LOG"
 
         convert_video_file "$video_file" "$is_portrait"
     else
