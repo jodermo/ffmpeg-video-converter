@@ -62,8 +62,8 @@ get_video_file() {
 convert_video_file() {
     local input_file="$1"
     local is_portrait="$2"
-    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}")-converted.mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}")-thumbnail.jpg"
+    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}").mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}").jpg"
 
     # Determine scale based on orientation
     local scale=""
