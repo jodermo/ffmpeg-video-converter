@@ -22,6 +22,7 @@ SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 COMPLETED_LOG="$LOG_DIR/completed_files.log"
 SYSTEM_LOG="$LOG_DIR/system.log"
 CSV_LOG="$LOG_DIR/conversion_log.csv"
+MAPPING_FILE="$LOG_DIR/conversion_mapping.log"
 
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
@@ -72,10 +73,12 @@ convert_video_file() {
     local output_file="$OUTPUT_DIR/${output_filename}.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/${thumbnail_filename}.jpg"
 
-    # Check if already converted
-    if [[ -f "$output_file" && -f "$thumbnail_file" ]]; then
-        echo "[$current_timestamp] Already converted: $output_file" | tee -a "$SKIPPED_LOG"
-        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Already Converted" >> "$CSV_LOG"
+    # Check mapping file for existing conversion
+    local existing_output=$(grep -F "$input_file," "$MAPPING_FILE" | cut -d',' -f2)
+    if [[ -n "$existing_output" && -f "$existing_output" ]]; then
+        cp "$existing_output" "$output_file"
+        echo "[$current_timestamp] Reused converted file: $output_file from $existing_output" | tee -a "$COMPLETED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Reused" >> "$CSV_LOG"
         return 0
     fi
 
@@ -86,11 +89,6 @@ convert_video_file() {
     else
         scale="${WIDTH}:${HEIGHT}"
     fi
-
-    # Total duration of the input video
-    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-        -of default=noprint_wrappers=1:nokey=1 "$input_file" 2>>"$SYSTEM_LOG")
-    duration=${duration%.*} # Round to nearest second
 
     # Convert video with progress
     ffmpeg -y -i "$input_file" \
@@ -109,6 +107,7 @@ convert_video_file() {
 
     if [[ $? -eq 0 ]]; then
         echo "[$current_timestamp] Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "$input_file,$output_file" >> "$MAPPING_FILE" # Save mapping
     else
         echo "[$current_timestamp] Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
