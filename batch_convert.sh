@@ -61,9 +61,11 @@ get_video_file() {
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
+    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}")-converted.mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}")-thumbnail.jpg"
     local is_portrait="$2"
-    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}").mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}").jpg"
+
+    mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
     # Determine scale based on orientation
     local scale=""
@@ -73,13 +75,25 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
-    # Convert video
+    # Total duration of the input video
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Round to nearest second
+
+    # Convert video with a clean progress bar
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-        -progress pipe:1 2>&1 | tee -a "$COMPLETED_LOG"
-        2>> "$COMPLETED_LOG"
+        -progress pipe:2 2>&1 | while read -r line; do
+            if [[ "$line" == "out_time_ms="* ]]; then
+                current_time_ms=${line#out_time_ms=}
+                current_time=$((current_time_ms / 1000000))
+                progress=$((current_time * 100 / duration))
+                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
+            fi
+        done
+    echo "" # New line after progress bar
 
     if [[ $? -eq 0 ]]; then
         echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
