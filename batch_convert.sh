@@ -63,7 +63,8 @@ fi
 
 # Function to find a file by name
 find_file_by_originalname() {
-    find "$INPUT_DIR" -type f -name "$1" -print -quit
+    local search_name="$1"
+    find "$INPUT_DIR" -type f -iname "${search_name}*" -print -quit
 }
 
 # Function to convert video and generate thumbnail
@@ -94,51 +95,25 @@ convert_video_file() {
             scale="${WIDTH}:${HEIGHT}"
         fi
 
-        # Get video duration
-        local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-            -of default=noprint_wrappers=1:nokey=1 "$input_file" 2>>"$SYSTEM_LOG")
-        duration=${duration%.*} # Round to nearest second
-
-        if [[ -z "$duration" || "$duration" -eq 0 ]]; then
-            log_error "Invalid duration for video: $input_file"
-            echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Duration" >> "$CSV_LOG"
-            return 1
-        fi
-
-        # Convert the video and show progress
+        # Convert the video
         ffmpeg -y -i "$input_file" \
             -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
             -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-            -progress pipe:2 2>&1 | while read -r line; do
-                if [[ "$line" == "out_time_ms="* ]]; then
-                    local current_time_ms=${line#out_time_ms=}
-                    local current_time=$((current_time_ms / 1000000))
-                    local progress=$((current_time * 100 / duration))
-                    printf "\rCompressing: [%3d%%] Output: %s, Video ID: %s" "$progress" "$output_file" "$video_id"
-                fi
-            done
-        echo "" # New line after progress bar
-
-        if [[ $? -ne 0 ]]; then
+            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" || {
             log_error "Failed to convert video: $input_file"
             echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
             return 1
-        fi
-
-        # Save mapping
+        }
         echo "$input_file,$output_file" >> "$MAPPING_FILE"
         log_debug "Video converted successfully: $output_file"
     fi
 
     # Generate a new thumbnail
-    retry_command ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$SYSTEM_LOG"
-
-    if [[ $? -ne 0 ]]; then
+    retry_command ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" || {
         log_error "Failed to generate thumbnail: $input_file"
         echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Thumbnail" >> "$CSV_LOG"
         return 1
-    fi
+    }
 
     log_debug "Thumbnail generated: $thumbnail_file"
     echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
@@ -148,26 +123,20 @@ convert_video_file() {
 while IFS=',' read -r video_id src thumbnail file_id; do
     [[ "$video_id" == "id" ]] && continue
 
-    # Parse filenames
+    # Extract filenames
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
     thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    # Lookup original name and AWS key if fileId is valid
+    # Lookup originalname and AWS key or fallback to src filename
     if [[ "$file_id" -ne 0 ]]; then
         originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
         aws_key=$(awk -F',' -v id="$file_id" '$1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
     fi
 
-    # If originalname is still empty, extract from video.src
     if [[ -z "$originalname" ]]; then
-        log_debug "No valid fileId for Video ID: $video_id. Extracting original name from src."
-        originalname="${src_filename%.*}" # Remove file extension to get the base name
-        aws_key="" # Leave AWS key empty if unavailable
-    fi
-
-    if [[ -z "$originalname" ]]; then
-        log_error "Original name could not be determined for Video ID: $video_id"
-        continue
+        log_debug "No valid fileId for Video ID: $video_id. Using src filename."
+        originalname="${src_filename%.*}"
+        aws_key=""
     fi
 
     # Locate video file
@@ -177,7 +146,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
-    # Check resolution and orientation
+    # Get resolution and orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
     [[ -z "$resolution" ]] && log_error "Failed to get resolution for: $video_file" && continue
 
