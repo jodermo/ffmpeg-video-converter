@@ -57,7 +57,6 @@ normalize_name() {
 
     # Replace Umlauts and special characters
     local normalized=$(echo "$filename" |
-        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g; s/ß/ss/g' | # Replace German Umlauts
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |                                  # Trim spaces
         tr '[:upper:]' '[:lower:]' |                                                # Convert to lowercase
         tr ' ' '_'                                                                  # Replace spaces with underscores
