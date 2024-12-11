@@ -104,9 +104,15 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
+    # Extract file_id and key
     file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
     key=$(basename "$(dirname "$src")")
-    thumbnail_name=$(basename "$thumbnail" 2>/dev/null || echo "${file_id}_fallback.jpg")
+
+    # Derive output names
+    video_name="${file_id:-$key}"
+    output_file="$OUTPUT_DIR/${video_name}.mp4"
+    thumbnail_name=$(basename "$thumbnail" 2>/dev/null || echo "${video_name}_fallback.jpg")
+    thumbnail_file="$THUMBNAIL_DIR/${thumbnail_name}"
 
     echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
 
@@ -124,10 +130,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
             is_portrait="false"
         fi
 
-        # Define output file paths
-        output_file="$OUTPUT_DIR/${key}.mp4"
-        thumbnail_file="$THUMBNAIL_DIR/${thumbnail_name}"
-
+        # Convert video and generate thumbnail
         convert_video_file "$video_file" "$output_file" "$thumbnail_file" "$is_portrait"
     else
         echo "Video file not found for File ID: $file_id or Key: $key" | tee -a "$SKIPPED_LOG"
