@@ -142,8 +142,13 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
 
     if [[ -z "$originalname" ]]; then
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        $originalname = $src;
+
+        # Extract original name from the src URL
+        originalname=$(basename "$src")  # Extract the last component of the URL
+        originalname="${originalname%.*}"  # Remove the file extension
+        log_debug "Extracted original name from src: $originalname"
     fi
 
     # Search for the video file in INPUT_DIR
