@@ -63,8 +63,9 @@ fi
 
 
 normalize_name() {
-    echo "$1" | sed 's/[\r\n]//g' | iconv -f UTF-8 -t ASCII//TRANSLIT | tr '[:upper:]' '[:lower:]' | tr -d ' ' | tr -d '_'
+    echo "$1" | tr -d '\r\n' | iconv -f UTF-8 -t ASCII//TRANSLIT | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's/[^a-z0-9._-]//g'
 }
+
 # Function to find a file by name
 # Function to find a file by name with debugging logs
 find_file_by_originalname() {
