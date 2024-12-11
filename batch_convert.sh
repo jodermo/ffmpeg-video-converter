@@ -76,11 +76,25 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
-    # Convert video
+    # Total duration of the input video
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Round to nearest second
+
+    # Convert video with progress
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" 2>>"$SKIPPED_LOG"
+        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
+        -progress pipe:2 2>&1 | while read -r line; do
+            if [[ "$line" == "out_time_ms="* ]]; then
+                current_time_ms=${line#out_time_ms=}
+                current_time=$((current_time_ms / 1000000))
+                progress=$((current_time * 100 / duration))
+                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
+            fi
+        done
+    echo "" # New line after progress bar
 
     if [[ $? -eq 0 ]]; then
         echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
@@ -88,6 +102,7 @@ convert_video_file() {
         echo "Failed to convert video: $input_file" | tee -a "$SKIPPED_LOG"
         return 1
     fi
+
 
     # Generate thumbnail
     ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$THUMBNAIL_LOG"
