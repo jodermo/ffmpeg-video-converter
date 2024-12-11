@@ -1,40 +1,32 @@
 # FFmpeg Converter
 
-This scripts are designed to process all video files in a specified input directory, optimize them for web playback, and extract a thumbnail for each video. It is tailored for landscape-oriented videos but can be adapted for other formats.
+This scripts are designed to process all video files in a specified input directory, optimize them for web playback, and extract a thumbnail for each video.
 
 ### File structure
 
 - converter/
-    - [existing_video_names](./existing_video_names) : *Drop CSV with existing video sources here*
-    - [input_videos_landscape/](./input_videos_landscape) : *Landscape videos to convert*
-    - [input_videos_portrait/](./input_videos_portrait) : *Portrait videos to convert*
+    - [input_videos/](./input_videos) : *All videos to convert*
     - [output_videos/](./output_videos) : *Converted files*
     - [thumbnails/](./thumbnails): *Extracted thumbnails*
-    - [linux_batch_convert_landscape.sh](./linux_batch_convert_landscape.sh): *Bash file for linus and mac*
-    - [linux_batch_convert_portrait.sh](./linux_batch_convert_portrait.sh): *Bash file for linus and mac*
-    - [win_batch_convert_landscape.bat](./win_batch_convert_landscape.bat): *Batsh file for windows*
-    - [win_batch_convert_portrait.bat](./win_batch_convert_portrait.bat): *Batsh file for windows*
-    - [batch_convert_named_landscape.sh](./batch_convert_named_landscape.sh): *Only convert video if name exist in CSV, rename thumbnail to name from CSV*
-    - [batch_convert_named_portrait.sh](./batch_convert_named_portrait.sh): *Only convert video if name exist in CSV, rename thumbnail to name from CSV*
+    - [logs/](./logs): *Output logs*
+    - [batch_convert.sh](./batch_convert.sh): *Bash file for linux and Mac*
 
 1. Check the Script's Permissions
 Make sure the script has executable permissions. Run:
-    - `chmod +x batch_convert_named_landscape.sh`
-    - `chmod +x batch_convert_named_portrait.sh`
-    - `chmod +x linux_batch_convert_landscape.sh`
-    - `chmod +x linux_batch_convert_portrait.sh`
+    - `chmod +x batch_convert.sh`
 
-2. Run Script (with video source CSV)
-    - Drop `video_sources.csv` to [existing_video_names/](./existing_video_names)
-    - Landscape: `bash batch_convert_named_landscape.sh`
-    - Portrait `bash batch_convert_named_portrait.sh`
+2. Drop your video data
+    - Drop `File.csv` to [csv_data/](./csv_data)
+    - Drop `video_sources.csv` to [csv_data/](./csv_data)
+    - Drop your video files to [input_videos/](./input_videos)
 
 3. Run Script (without video source CSV)
-    - Landscape: `bash linux_batch_convert_landscape.sh`
-    - Portrait `bash linux_batch_convert_portrait.sh`
+    - Run: `bash batch_convert.sh`
 
-
-
+4. Whatch result
+    - Converted videos in [output_videos/](./output_videos)
+    - Generated thumbnails in [thumbnails/](./thumbnails)
+    - Output logs in [logs/](./logs)
 
 ## Install ffmpeg on linux
 
