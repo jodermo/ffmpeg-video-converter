@@ -58,9 +58,10 @@ find_file_by_originalname() {
 convert_video_file() {
     local input_file="$1"
     local is_portrait="$2"
-    local base_name="$3"
-    local output_file="$OUTPUT_DIR/${base_name}.mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/${base_name}.jpg"
+    local output_filename="$3"
+    local thumbnail_filename="$4"
+    local output_file="$OUTPUT_DIR/${output_filename}.mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/${thumbnail_filename}.jpg"
 
     # Determine scale based on orientation
     local scale=""
@@ -113,6 +114,12 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
+    # Extract file names from src and thumbnail
+    src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
+    thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
+
+    log_debug "Processing Video ID=$video_id, File ID=$file_id, Src Filename=$src_filename, Thumbnail Filename=$thumbnail_filename"
+
     # Find the original name in File.csv using file_id
     originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
     
@@ -133,8 +140,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     log_debug "Video file found: $video_file"
 
-    # Determine base name and orientation
-    base_name="${originalname%.*}"
+    # Determine video orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>/dev/null)
     if [[ -z "$resolution" ]]; then
         echo "Unable to get resolution for file: $video_file" | tee -a "$SKIPPED_LOG"
@@ -152,8 +158,8 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     log_debug "Video orientation determined: is_portrait=$is_portrait"
 
-    # Convert video and generate thumbnail
-    convert_video_file "$video_file" "$is_portrait" "$base_name"
+    # Convert video and generate thumbnail using extracted names
+    convert_video_file "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}"
 done < "$VIDEO_SOURCES_CSV"
 
 log_debug "Processing completed for VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"

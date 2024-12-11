@@ -6,7 +6,7 @@ DEBUG=1
 # Debug log function
 log_debug() {
     if [[ "$DEBUG" -eq 1 ]]; then
-        echo "[DEBUG] $1" | tee -a "$LOG_DIR/debug.log"
+        echo "[DEBUG] $1" | tee -a "$SYSTEM_LOG"
     fi
 }
 
@@ -20,7 +20,7 @@ LOG_DIR="./logs"
 
 SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 COMPLETED_LOG="$LOG_DIR/completed_files.log"
-THUMBNAIL_LOG="$LOG_DIR/generated_thumbnails.log"
+SYSTEM_LOG="$LOG_DIR/system.log"
 
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
@@ -73,38 +73,32 @@ convert_video_file() {
 
     # Total duration of the input video
     local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+        -of default=noprint_wrappers=1:nokey=1 "$input_file" 2>>"$SYSTEM_LOG")
     duration=${duration%.*} # Round to nearest second
 
-    # Convert video with progress
+    # Convert video
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-        -progress pipe:2 2>&1 | while read -r line; do
-            if [[ "$line" == "out_time_ms="* ]]; then
-                current_time_ms=${line#out_time_ms=}
-                current_time=$((current_time_ms / 1000000))
-                progress=$((current_time * 100 / duration))
-                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
-            fi
-        done
-    echo "" # New line after progress bar
+        -progress pipe:2 2>>"$SYSTEM_LOG"
 
     if [[ $? -eq 0 ]]; then
         echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
     else
         echo "Failed to convert video: $input_file" | tee -a "$SKIPPED_LOG"
+        log_debug "Conversion failed for $input_file"
         return 1
     fi
 
     # Generate thumbnail
-    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$THUMBNAIL_LOG"
+    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$SYSTEM_LOG"
 
     if [[ $? -eq 0 ]]; then
-        echo "Thumbnail generated: $thumbnail_file" | tee -a "$THUMBNAIL_LOG"
+        echo "Thumbnail generated: $thumbnail_file" | tee -a "$COMPLETED_LOG"
     else
         echo "Failed to generate thumbnail: $input_file" | tee -a "$SKIPPED_LOG"
+        log_debug "Thumbnail generation failed for $input_file"
     fi
 }
 
@@ -118,14 +112,11 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
     thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    log_debug "Processing Video ID=$video_id, File ID=$file_id, Src Filename=$src_filename, Thumbnail Filename=$thumbnail_filename"
-
     # Find the original name in File.csv using file_id
     originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
     
     if [[ -z "$originalname" ]]; then
         echo "Original name not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
-        log_debug "Original name not found for File ID=$file_id"
         continue
     fi
 
@@ -134,17 +125,14 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     if [[ -z "$video_file" ]]; then
         echo "Video file not found for Original Name: $originalname" | tee -a "$SKIPPED_LOG"
-        log_debug "No video file found for Original Name=$originalname in INPUT_DIR=$INPUT_DIR"
         continue
     fi
 
-    log_debug "Video file found: $video_file"
-
     # Determine video orientation
-    resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>/dev/null)
+    resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
     if [[ -z "$resolution" ]]; then
         echo "Unable to get resolution for file: $video_file" | tee -a "$SKIPPED_LOG"
-        log_debug "Failed to get resolution for file: $video_file"
+        log_debug "Failed to get resolution for $video_file"
         continue
     fi
 
@@ -155,8 +143,6 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     if (( height > width )); then
         is_portrait="true"
     fi
-
-    log_debug "Video orientation determined: is_portrait=$is_portrait"
 
     # Convert video and generate thumbnail using extracted names
     convert_video_file "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}"
