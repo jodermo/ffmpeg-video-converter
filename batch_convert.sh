@@ -42,71 +42,12 @@ normalize_filename() {
     echo "$1" | tr -d '[:space:]'
 }
 
-# Process video sources
-while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
-    # Skip header
-    if [[ "$ID" == "id" ]]; then continue; fi
 
-    echo "Search: Video ID: $ID , src:  $SRC  , fileId: $FILEID" | tee -a "$SKIPPED_LOG"
-
-    # Match file entry from FILE_NAMES_CSV using fileId
-    MATCHING_LINE=$(grep -F ",$FILEID," "$FILE_NAMES_CSV" | head -n 1)
-    if [[ -z "$MATCHING_LINE" ]]; then
-        echo "Skipping: No matching entry for fileId $FILEID in File.csv" | tee -a "$SKIPPED_LOG"
-        continue
-    fi
-
-    ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
-    NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
-
-    INPUT_FILE="$INPUT_DIR/$ORIGINALNAME"
-    if [[ ! -f "$INPUT_FILE" ]]; then
-        echo "Skipping: Input file $ORIGINALNAME not found in $INPUT_DIR" | tee -a "$SKIPPED_LOG"
-        continue
-    fi
-
-    IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
-    KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
-
-    # Remove `.mp4` from the key for output naming
-    KEY_NO_EXT="${KEY%.mp4}"
-    OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
-
-    # Determine thumbnail file name
-    THUMBNAIL_NAME=$(basename "$THUMBNAIL")
-    if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-        THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
-    fi
-    THUMBNAIL_FILE="$THUMBNAIL_DIR/$THUMBNAIL_NAME"
-
-    # Set resolution based on orientation
-    if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
-        WIDTH=$LANDSCAPE_HEIGHT
-        HEIGHT=$LANDSCAPE_WIDTH
-    else
-        WIDTH=$LANDSCAPE_WIDTH
-        HEIGHT=$LANDSCAPE_HEIGHT
-    fi
-
-    # Convert video
-    ffmpeg -y -i "$INPUT_FILE" \
-        -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
-        -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || {
-        echo "Error processing video $ORIGINALNAME" | tee -a "$SKIPPED_LOG"
-        continue
-    }
-
-    # Extract thumbnail
-    ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
-    if [[ $? -ne 0 ]]; then
-        echo "Error: Failed to create thumbnail for $ORIGINALNAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
-        continue
-    fi
-
-    # Log success
-    echo "Completed: $ORIGINALNAME" | tee -a "$COMPLETED_LOG"
-    echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
-    echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
-
+# Read and separate values for each row
+while IFS=',' read -r id src thumbnail fileId; do
+  echo "ID: $id"
+  echo "Source: $src"
+  echo "Thumbnail: $thumbnail"
+  echo "File ID: $fileId"
+  echo "--------------------------"
 done < "$VIDEO_SOURCES_CSV"
