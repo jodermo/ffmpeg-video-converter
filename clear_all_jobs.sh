@@ -10,12 +10,12 @@ else
     exit 1
 fi
 
-# Function to clear a directory
+# Function to clear a directory but ignore README files
 clear_directory() {
     local dir_path="$1"
     if [[ -d "$dir_path" ]]; then
-        rm -rf "$dir_path"/*
-        echo "Cleared directory: $dir_path"
+        find "$dir_path" -type f ! -name "README*" -exec rm -f {} +
+        echo "Cleared directory (excluding README files): $dir_path"
     else
         echo "Directory not found: $dir_path. Skipping."
     fi
