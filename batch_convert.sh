@@ -70,22 +70,33 @@ is_already_processed() {
 normalize_name() {
     local filename="$1"
 
-    # Decode URI-encoded characters using Perl
-    local decoded=$(perl -MURI::Escape -e "print uri_unescape('$filename');")
+    # Step 1: Decode URI-encoded characters
+    filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Normalize the decoded filename
-    local normalized=$(echo "$decoded" |
-        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |  # Replace German Umlauts
-        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' | # Normalize accented characters
-        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |  # Additional diacritics
-        sed 's/œ/oe/g; s/æ/ae/g' |  # Ligatures
-        sed 's/[’‘‹›‚]/_/g; s/[“”«»„]/_/g; s/[©®™]/_/g' | # Remove quotes and symbols
-        tr -d '\n\r' |  # Remove newlines and carriage returns
-        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
-        sed 's/[^a-zA-Z0-9._-]//g'  # Remove remaining invalid characters
+    # Step 2: Fix misencoded characters (e.g., UTF-8 issues from CSV)
+    filename=$(echo "$filename" |
+        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |  # Fix common UTF-8 encoding issues
+        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/\'/g; s/â€™/\'/g; s/â€“/-/g; s/â€”/-/g'        # Fix fancy quotes and dashes
     )
 
-    echo "$normalized"
+    # Step 3: Replace German Umlauts and other special characters
+    filename=$(echo "$filename" |
+        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |
+        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' |
+        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |
+        sed 's/œ/oe/g; s/æ/ae/g'
+    )
+
+    # Step 4: Normalize Unicode to NFC (Canonical Composition)
+    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c)
+
+    # Step 5: Replace unsafe characters and spaces
+    filename=$(echo "$filename" |
+        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
+        sed 's/[^a-zA-Z0-9._-]//g'  # Remove invalid characters
+    )
+
+    echo "$filename"
 }
 
 
@@ -94,13 +105,12 @@ find_file_by_originalname() {
     local originalname="$1"
     local normalized_original=$(normalize_name "$originalname")
 
-    # Loop through all files in INPUT_DIR
     find "$INPUT_DIR" -type f | while read -r file; do
-        # Ignore README.md
-        [[ "$(basename "$file")" == "README.md" ]] && continue
+        local filename=$(basename "$file")
+        local normalized_file=$(normalize_name "$filename")
 
-        # Normalize the current file's name
-        local normalized_file=$(normalize_name "$(basename "$file")")
+        # Debug: Log comparisons
+        echo "[DEBUG] Comparing: '$filename' -> '$normalized_file' with '$originalname' -> '$normalized_original'" >> "$SYSTEM_LOG"
 
         # Compare normalized names
         if [[ "$normalized_original" == "$normalized_file" ]]; then
@@ -109,9 +119,9 @@ find_file_by_originalname() {
         fi
     done
 
-    # If no match is found, return empty
     echo ""
 }
+
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
