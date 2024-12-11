@@ -113,7 +113,6 @@ convert_video_file() {
         echo "Failed to generate thumbnail: $input_file" | tee -a "$SKIPPED_LOG"
     fi
 }
-
 # Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
     if [[ "$video_id" == "id" ]]; then
@@ -141,22 +140,29 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     echo "Processing Video ID: $video_id, File ID: $file_id, Base Name: $base_name" | tee -a "$COMPLETED_LOG"
 
-    get_video_file "$file_id" "$src"
-
-    video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
-    if [[ -n "$video_file" ]]; then
-        # Determine orientation
-        resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
-        width=$(echo "$resolution" | cut -d',' -f1)
-        height=$(echo "$resolution" | cut -d',' -f2)
-
-        is_portrait="false"
-        if (( height > width )); then
-            is_portrait="true"
-        fi
-
-        convert_video_file "$video_file" "$is_portrait" "$base_name"
-    else
+    # Search for video file in the input directory
+    video_file=$(find "$INPUT_DIR" -type f -name "*$file_id*" -print -quit)
+    
+    if [[ -z "$video_file" ]]; then
         echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
+        continue
     fi
+
+    # Determine orientation
+    resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>/dev/null)
+    if [[ -z "$resolution" ]]; then
+        echo "Unable to get resolution for file: $video_file" | tee -a "$SKIPPED_LOG"
+        continue
+    fi
+
+    width=$(echo "$resolution" | cut -d',' -f1)
+    height=$(echo "$resolution" | cut -d',' -f2)
+
+    is_portrait="false"
+    if (( height > width )); then
+        is_portrait="true"
+    fi
+
+    convert_video_file "$video_file" "$is_portrait" "$base_name"
 done < "$VIDEO_SOURCES_CSV"
+
