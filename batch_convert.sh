@@ -64,13 +64,23 @@ fi
 # Function to find a file by name
 find_file_by_originalname() {
     local originalname=$(echo "$1")
-    log_debug "Searching for sanitized file name: $originalname"
-    log_debug "Files available in $INPUT_DIR:"
-    find "$INPUT_DIR" -type f -print | tee -a "$SYSTEM_LOG"
+
+    # Special debugging for specific file
+    if [[ "$originalname" == "HDI_EMPLOYEE_2021_Azubi_Christian_220413_1.mp4" ]]; then
+        log_debug "Searching for sanitized file name: $originalname"
+        log_debug "Files available in $INPUT_DIR:"
+        find "$INPUT_DIR" -type f -print | tee -a "$SYSTEM_LOG"
+    fi
+
+    # Search for the file
     local matched_file=$(find "$INPUT_DIR" -type f -iname "$originalname" -print -quit)
-    if [[ -z "$matched_file" ]]; then
+    
+    # Log error if the file is not found and matches specific criteria
+    if [[ -z "$matched_file" && "$originalname" == "HDI_EMPLOYEE_2021_Azubi_Christian_220413_1.mp4" ]]; then
         log_error "File not found for: $originalname"
     fi
+
+    # Return the matched file (empty if not found)
     echo "$matched_file"
 }
 
