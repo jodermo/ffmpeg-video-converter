@@ -24,7 +24,7 @@ THUMBNAIL_TIME="00:00:04"
 THUMBNAIL_QUALITY="2"
 
 # Ensure directories exist
-mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR" "$(dirname "$SKIPPED_LOG")"
 
 # Check if CSV exists
 if [[ ! -f "$FILE_NAMES_CSV" ]] || [[ ! -f "$VIDEO_SOURCES_CSV" ]]; then
@@ -42,12 +42,35 @@ normalize_filename() {
     echo "$1" | tr -d '[:space:]'
 }
 
-
-# Read and separate values for each row
+# Process each row in VIDEO_SOURCES_CSV
 while IFS=',' read -r id src thumbnail fileId; do
-  echo "ID: $id"
-  echo "Source: $src"
-  echo "Thumbnail: $thumbnail"
-  echo "File ID: $fileId"
-  echo "--------------------------"
+    echo "Processing Video ID: $id"
+    echo "Source: $src"
+    echo "Thumbnail: $thumbnail"
+    echo "File ID: $fileId"
+    
+    match_found=false
+
+    # Find matching file in FILE_NAMES_CSV
+    while IFS=',' read -r fid userId name filename originalname mimetype destination path size created filethumbnail location bucket key type progressStatus views topixId portrait; do
+        if [[ "$fileId" == "$fid" ]]; then
+            echo "Match found for File ID: $fileId"
+            echo "Original Name: $originalname"
+            echo "--------------------------"
+
+            match_found=true
+
+            # Process the video file here if needed
+            # Add further processing code for each match
+            
+            break
+        fi
+    done < "$FILE_NAMES_CSV"
+
+    if [[ "$match_found" == false ]]; then
+        echo "No match found for File ID: $fileId" >> "$SKIPPED_LOG"
+    fi
+
 done < "$VIDEO_SOURCES_CSV"
+
+echo "Processing complete. Check logs for details."
