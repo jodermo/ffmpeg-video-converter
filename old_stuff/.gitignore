@@ -1,0 +1,10 @@
+input_videos/*
+input_videos_landscape/*
+input_videos_portrait/*
+output_videos/*
+thumbnails/*
+temp/*
+existing_video_names/*
+logs/*
+skipped_files.log
+completed_files.log
