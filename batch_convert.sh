@@ -144,7 +144,6 @@ convert_video_file() {
     echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
 }
 
-
 # Main processing loop
 while IFS=',' read -r video_id src thumbnail file_id; do
     [[ "$video_id" == "id" ]] && continue
@@ -153,12 +152,21 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
     thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    # Lookup original name and AWS key
-    originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
-    aws_key=$(awk -F',' -v id="$file_id" '$1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+    # Lookup original name and AWS key if fileId is valid
+    if [[ "$file_id" -ne 0 ]]; then
+        originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+        aws_key=$(awk -F',' -v id="$file_id" '$1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+    fi
+
+    # If originalname is still empty, extract from video.src
+    if [[ -z "$originalname" ]]; then
+        log_debug "No valid fileId for Video ID: $video_id. Extracting original name from src."
+        originalname="${src_filename%.*}" # Remove file extension to get the base name
+        aws_key="" # Leave AWS key empty if unavailable
+    fi
 
     if [[ -z "$originalname" ]]; then
-        log_error "Original name not found for File ID: $file_id"
+        log_error "Original name could not be determined for Video ID: $video_id"
         continue
     fi
 
