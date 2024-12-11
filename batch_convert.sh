@@ -40,10 +40,7 @@ THUMBNAIL_TIME="00:00:02"
 THUMBNAIL_QUALITY="2"
 
 # Initialize CSV log
-if [[ ! -f "$CSV_LOG" ]]; then
-    echo "Timestamp,Video ID,Original Name,AWS Key,Output File,Thumbnail File,Status" > "$CSV_LOG"
-    log_debug "CSV log initialized: $CSV_LOG"
-fi
+echo "Timestamp,Video ID,Original Name,AWS Key,Output File,Thumbnail File,Status" > "$CSV_LOG"
 
 # Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
@@ -112,7 +109,6 @@ convert_video_file() {
 
     if [[ $? -eq 0 ]]; then
         echo "[$current_timestamp] Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
-        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
     else
         echo "[$current_timestamp] Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
