@@ -1,23 +1,14 @@
 #!/bin/bash
 
-# File Paths
 FILE_NAMES_CSV="./csv_data/File.csv"
 VIDEO_SOURCES_CSV="./csv_data/video_sources.csv"
+
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
-LOG_DIR="./logs"
-
-SKIPPED_LOG="$LOG_DIR/skipped_files.log"
-COMPLETED_LOG="$LOG_DIR/completed_files.log"
-THUMBNAIL_LOG="$LOG_DIR/generated_thumbnails.log"
-
-# Ensure directories exist
-mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
 # Video parameters
-WIDTH="1920"
-HEIGHT="1080"
+SCALE="1920:1080"
 QUALITY="30"        # CRF value (lower = higher quality, larger file size)
 PRESET="slow"        # FFmpeg preset (slower = better compression)
 AUDIO_BITRATE="128k" # Audio bitrate
@@ -26,75 +17,68 @@ AUDIO_BITRATE="128k" # Audio bitrate
 THUMBNAIL_TIME="00:00:02"
 THUMBNAIL_QUALITY="2"  # Lower value = higher quality
 
-# Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
-    echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
+    echo "Error: CSV files are missing."
     exit 1
 fi
 
-# Function to convert video and generate thumbnail
-convert_video_file() {
-    local input_file="$1"
-    local output_file="$2"
-    local thumbnail_file="$3"
-    local is_portrait="$4"
+# Function to find video file details
+get_video_file() {
+    local file_id="$1"
+    local src="$2"
+    local match_found=false
 
-    # Check if output already exists
-    if [[ -f "$output_file" ]]; then
-        echo "Video already converted: $output_file" | tee -a "$COMPLETED_LOG"
-        return 0
-    fi
+    # Check for an exact match
+    while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
+        if [[ "$file_id_row" == "id" ]]; then
+            continue
+        fi
 
-    mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+        # Trim whitespace and remove quotes
+        file_id_row=$(echo "$file_id_row" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [[ "$file_id" == "$file_id_row" ]]; then
+            echo "Match Found for File ID: $file_id"
+            echo "Source: $src"
+            echo "Original Name: $originalname"
+            match_found=true
+            break
+        fi
+    done < <(cat "$FILE_NAMES_CSV") # Ensure clean environment for IFS
 
-    # Determine scale based on orientation
-    local scale=""
-    if [[ "$is_portrait" == "true" ]]; then
-        scale="${HEIGHT}:${WIDTH}"
-    else
-        scale="${WIDTH}:${HEIGHT}"
-    fi
-
-    # Total duration of the input video
-    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-        -of default=noprint_wrappers=1:nokey=1 "$input_file")
-    duration=${duration%.*} # Round to nearest second
-
-    if [[ -z "$duration" || "$duration" -eq 0 ]]; then
-        echo "Failed to get duration for $input_file. Skipping..." | tee -a "$SKIPPED_LOG"
-        return 1
-    fi
-
-    # Convert video with progress bar
-    ffmpeg -y -i "$input_file" \
-        -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
-        -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-        -progress pipe:2 2>&1 | while read -r line; do
-            if [[ "$line" == "out_time_ms="* ]]; then
-                current_time_ms=${line#out_time_ms=}
-                current_time=$((current_time_ms / 1000000))
-                progress=$((current_time * 100 / duration))
-                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
+    # If no exact match is found, check if key is included in src
+    if [[ "$match_found" == false ]]; then
+        echo "No exact match found for File ID: $file_id. Searching for partial matches..."
+        while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
+            if [[ "$key" == "key" ]]; then
+                continue
             fi
-        done
-    echo ""
 
-    if [[ $? -eq 0 ]]; then
-        echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
-    else
-        echo "Failed to convert video: $input_file" | tee -a "$SKIPPED_LOG"
-        return 1
+            # Trim whitespace and remove quotes
+            key=$(echo "$key" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            if [[ "$src" == *"$key"* ]]; then
+                echo "Partial Match Found!"
+                echo "File Key: $key is included in Source: $src"
+                echo "Original Name: $originalname"
+
+                # Check if the file with the key exists in the INPUT_DIR
+                if ls "$INPUT_DIR"/*"$key"* 1> /dev/null 2>&1; then
+                    echo "File with Key: $key found in INPUT_DIR."
+                    echo "Proceeding with processing..."
+                    # Example logic: List matching files
+                    ls "$INPUT_DIR"/*"$key"*
+                else
+                    echo "No file with Key: $key found in INPUT_DIR."
+                fi
+
+                match_found=true
+                break
+            fi
+        done < <(cat "$FILE_NAMES_CSV")
     fi
 
-    # Generate thumbnail
-    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" \
-        2>> "$THUMBNAIL_LOG"
-
-    if [[ $? -eq 0 ]]; then
-        echo "Thumbnail generated: $thumbnail_file" | tee -a "$THUMBNAIL_LOG"
-    else
-        echo "Failed to generate thumbnail: $input_file" | tee -a "$SKIPPED_LOG"
+    if [[ "$match_found" == false ]]; then
+        echo "No match found for File ID: $file_id in Source: $src"
     fi
 }
 
@@ -104,35 +88,11 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
-    # Extract file_id and key
+    # Trim whitespace and remove quotes
     file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    key=$(basename "$(dirname "$src")")
+    echo "Processing Video ID: $video_id, File ID: $file_id"
 
-    # Derive output names
-    video_name="${file_id:-$key}"
-    output_file="$OUTPUT_DIR/${video_name}.mp4"
-    thumbnail_name=$(basename "$thumbnail" 2>/dev/null || echo "${video_name}_fallback.jpg")
-    thumbnail_file="$THUMBNAIL_DIR/${thumbnail_name}"
+    # Call the function with arguments
+    get_video_file "$file_id" "$src"
 
-    echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
-
-    # Locate video file
-    video_file=$(find "$INPUT_DIR" -type f \( -name "*${file_id}*" -o -name "*${key}*" -o -name "*.mp4" \) | head -n 1)
-    if [[ -n "$video_file" ]]; then
-        # Determine video orientation
-        resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
-        width=$(echo "$resolution" | cut -d',' -f1)
-        height=$(echo "$resolution" | cut -d',' -f2)
-
-        if (( height > width )); then
-            is_portrait="true"
-        else
-            is_portrait="false"
-        fi
-
-        # Convert video and generate thumbnail
-        convert_video_file "$video_file" "$output_file" "$thumbnail_file" "$is_portrait"
-    else
-        echo "Video file not found for File ID: $file_id or Key: $key" | tee -a "$SKIPPED_LOG"
-    fi
-done < <(cat "$VIDEO_SOURCES_CSV")
+done < <(cat "$VIDEO_SOURCES_CSV") # Ensure clean environment for IFS
