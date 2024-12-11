@@ -52,11 +52,47 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
-# Function to find file in INPUT_DIR based on originalname
-find_file_by_originalname() {
-    local originalname="$1"
-    local matched_file=$(find "$INPUT_DIR" -type f -name "$originalname" -print -quit)
-    echo "$matched_file"
+normalize_name() {
+    local filename="$1"
+
+    # Replace Umlauts and special characters
+    local normalized=$(echo "$filename" |
+        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g; s/ß/ss/g' | # Replace German Umlauts
+        sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |                                  # Trim spaces
+        tr '[:upper:]' '[:lower:]' |                                                # Convert to lowercase
+        tr ' ' '_'                                                                  # Replace spaces with underscores
+    )
+
+    echo "$normalized"
+}
+
+
+# Function to search and normalize all files
+search_and_compare_files() {
+    local input_dir="$1"
+    if [[ ! -d "$input_dir" ]]; then
+        echo "Directory '$input_dir' does not exist."
+        return 1
+    fi
+
+    echo "Searching and normalizing file names in directory: $input_dir"
+    echo "==================================================="
+
+    find "$input_dir" -type f | while read -r file; do
+        # Get the basename and its normalized version
+        local default_name=$(basename "$file")
+        local normalized_name=$(normalize_name "$default_name")
+
+        # Output the original and normalized names
+        echo "Default Name: $default_name"
+        echo "Normalized Name: $normalized_name"
+
+        # Check if normalized name already exists in the directory
+        if [[ "$default_name" != "$normalized_name" && -e "$input_dir/$normalized_name" ]]; then
+            echo "Conflict: A file with normalized name '$normalized_name' already exists."
+        fi
+        echo "---------------------------------------------------"
+    done
 }
 
 # Function to convert video and generate thumbnail
