@@ -73,6 +73,18 @@ normalize_name() {
     # Step 1: Decode URI-encoded characters
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
+    # Step 2: Fix misencoded characters (e.g., UTF-8 issues from CSV)
+    filename=$(echo "$filename" |
+        # Replace common UTF-8 misencoded characters
+        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |  # German Umlauts
+        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |  # Fancy quotes and dashes
+        sed 's/â€¦/.../g; s/â€‹//g' |  # Ellipsis and zero-width space
+        sed 's/Ã©/é/g; s/Ã¨/è/g; s/Ãª/ê/g; s/Ã«/ë/g' |  # Accented "e"
+        sed 's/Ã¡/á/g; s/Ã /à/g; s/Ã¢/â/g; s/Ã£/ã/g; s/Ã¤/ä/g; s/Ã¥/å/g' |  # Accented "a"
+        sed 's/Ã³/ó/g; s/Ã²/ò/g; s/Ã´/ô/g; s/Ãµ/õ/g; s/Ã¶/ö/g; s/Ã¸/ø/g' |  # Accented "o"
+        sed 's/Ãº/ú/g; s/Ã¹/ù/g; s/Ã»/û/g; s/Ã¼/ü/g' |  # Accented "u"
+        sed 's/Ã§/ç/g; s/Ã±/ñ/g; s/Ã½/ý/g; s/Ã¿/ÿ/g'   # Special characters
+    )
 
 
     # Step 3: Replace German Umlauts and other special characters
