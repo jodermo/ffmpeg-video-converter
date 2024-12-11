@@ -87,9 +87,9 @@ normalize_name() {
     filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | python3 -c "import unicodedata, sys; print(unicodedata.normalize('NFC', sys.stdin.read()))")
     log_debug "Unicode normalized filename: $filename"
 
-    # Remove all non-alphabetic characters
-    filename=$(echo "$filename" | sed 's/[^a-zA-Z]//g')
-    log_debug "Alphabetic-only filename: $filename"
+    # Remove all non-alphabetic and non-numeric characters
+    filename=$(echo "$filename" | sed 's/[^a-zA-Z0-9]//g')
+    log_debug "Alphanumeric-only filename: $filename"
 
     echo "$filename"
 }
