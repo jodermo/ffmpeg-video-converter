@@ -63,15 +63,8 @@ fi
 
 # Function to find a file by name
 find_file_by_originalname() {
-    local originalname=$(echo "$1" | sed 's/^"//;s/"$//;s/\r//') # Trim quotes and carriage returns
-    log_debug "Searching for file: $originalname in $INPUT_DIR"
-    local matched_file=$(find "$INPUT_DIR" -type f -iname "$originalname" -print -quit)
-    if [[ -z "$matched_file" ]]; then
-        log_error "File not found for: $originalname"
-    fi
-    echo "$matched_file"
+    find "$INPUT_DIR" -type f -name "$1" -print -quit
 }
-
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
@@ -157,11 +150,13 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     [[ "$video_id" == "id" ]] && continue
 
     # Parse filenames
-    src_filename=$(basename "$src" | xargs)
-    thumbnail_filename=$(basename "$thumbnail" | xargs)
+    src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
+    thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    # Lookup original name
-    originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | xargs)
+    # Lookup original name and AWS key
+    originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+    aws_key=$(awk -F',' -v id="$file_id" '$1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+
     if [[ -z "$originalname" ]]; then
         log_error "Original name not found for File ID: $file_id"
         continue
@@ -173,7 +168,6 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         log_error "Video file not found: $originalname"
         continue
     fi
-    log_debug "Processing file: $video_file"
 
     # Check resolution and orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
