@@ -21,6 +21,7 @@ LOG_DIR="./logs"
 SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 COMPLETED_LOG="$LOG_DIR/completed_files.log"
 SYSTEM_LOG="$LOG_DIR/system.log"
+CSV_LOG="$LOG_DIR/conversion_log.csv"
 
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
@@ -28,8 +29,8 @@ mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 log_debug "Directories ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
 
 # Video parameters
-WIDTH="1920"
-HEIGHT="1080"
+WIDTH="1280"
+HEIGHT="720"
 QUALITY="30"
 PRESET="slow"
 AUDIO_BITRATE="128k"
@@ -37,6 +38,9 @@ AUDIO_BITRATE="128k"
 # Thumbnail parameters
 THUMBNAIL_TIME="00:00:02"
 THUMBNAIL_QUALITY="2"
+
+# Initialize CSV log
+echo "Timestamp,Video ID,Original Name,AWS Key,Output File,Thumbnail File,Status" > "$CSV_LOG"
 
 # Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
@@ -63,8 +67,17 @@ convert_video_file() {
     local is_portrait="$3"
     local output_filename="$4"
     local thumbnail_filename="$5"
+    local original_name="$6"
+    local aws_key="$7"
     local output_file="$OUTPUT_DIR/${output_filename}.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/${thumbnail_filename}.jpg"
+
+    # Check if already converted
+    if [[ -f "$output_file" && -f "$thumbnail_file" ]]; then
+        echo "[$current_timestamp] Already converted: $output_file" | tee -a "$SKIPPED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Already Converted" >> "$CSV_LOG"
+        return 0
+    fi
 
     # Determine scale based on orientation
     local scale=""
@@ -98,7 +111,7 @@ convert_video_file() {
         echo "[$current_timestamp] Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
     else
         echo "[$current_timestamp] Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "[$current_timestamp] Conversion failed for $input_file, Video ID: $video_id"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
         return 1
     fi
 
@@ -107,9 +120,10 @@ convert_video_file() {
 
     if [[ $? -eq 0 ]]; then
         echo "[$current_timestamp] Thumbnail generated: $thumbnail_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
     else
         echo "[$current_timestamp] Failed to generate thumbnail: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "[$current_timestamp] Thumbnail generation failed for $input_file, Video ID: $video_id"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Thumbnail" >> "$CSV_LOG"
     fi
 }
 
@@ -124,9 +138,10 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
     thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    # Find the original name in File.csv using file_id
+    # Find the original name and AWS key in File.csv using file_id
     originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
-    
+    aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+
     if [[ -z "$originalname" ]]; then
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         continue
@@ -144,7 +159,6 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
     if [[ -z "$resolution" ]]; then
         echo "[$timestamp] Unable to get resolution for file: $video_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "[$timestamp] Failed to get resolution for $video_file, Video ID: $video_id"
         continue
     fi
 
@@ -157,7 +171,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     fi
 
     # Convert video and generate thumbnail using extracted names
-    convert_video_file "$video_id" "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}"
+    convert_video_file "$video_id" "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}" "$originalname" "$aws_key"
 done < "$VIDEO_SOURCES_CSV"
 
 log_debug "Processing completed for VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
