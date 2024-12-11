@@ -63,6 +63,9 @@ is_already_processed() {
 
     return 1 # File is not processed
 }
+
+
+
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
