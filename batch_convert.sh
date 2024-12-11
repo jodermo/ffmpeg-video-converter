@@ -96,11 +96,31 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
-    # Convert the video
-    retry_command ffmpeg -y -i "$input_file" \
+    # Get video duration
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file" 2>>"$SYSTEM_LOG")
+    duration=${duration%.*} # Round to nearest second
+
+    if [[ -z "$duration" || "$duration" -eq 0 ]]; then
+        log_error "Invalid duration for video: $input_file"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Duration" >> "$CSV_LOG"
+        return 1
+    fi
+
+    # Convert the video and show progress
+    ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" 2>>"$SYSTEM_LOG"
+        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
+        -progress pipe:2 2>&1 | while read -r line; do
+            if [[ "$line" == "out_time_ms="* ]]; then
+                local current_time_ms=${line#out_time_ms=}
+                local current_time=$((current_time_ms / 1000000))
+                local progress=$((current_time * 100 / duration))
+                printf "\rCompressing: [%3d%%] Output: %s, Video ID: %s" "$progress" "$output_file" "$video_id"
+            fi
+        done
+    echo "" # New line after progress bar
 
     if [[ $? -ne 0 ]]; then
         log_error "Failed to convert video: $input_file"
