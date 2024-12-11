@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # Debug mode (set to 1 to enable debug logs, 0 to disable)
@@ -48,38 +47,16 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
-# Function to check for a matching video file
-get_video_file() {
-    local file_id="$1"
-    local src="$2"
-    local match_found=false
-
-    while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
-        if [[ "$file_id_row" == "id" ]]; then
-            continue
-        fi
-
-        file_id_row=$(echo "$file_id_row" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-
-        if [[ "$file_id" == "$file_id_row" ]]; then
-            echo "Match Found for File ID: $file_id" | tee -a "$COMPLETED_LOG"
-            echo "Source: $src" | tee -a "$COMPLETED_LOG"
-            match_found=true
-            break
-        fi
-    done < "$FILE_NAMES_CSV"
-
-    if [[ "$match_found" == false ]]; then
-        echo "No match found for File ID: $file_id in Source: $src" | tee -a "$SKIPPED_LOG"
-    fi
-}
+# Log files in INPUT_DIR for debugging
+log_debug "Files in INPUT_DIR:"
+ls -1 "$INPUT_DIR" | while read -r file; do
+    log_debug "  - $file"
+done
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
     local is_portrait="$2"
-
-    # Determine base name for output
     local base_name="$3"
     local output_file="$OUTPUT_DIR/${base_name}.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/${base_name}.jpg"
@@ -119,7 +96,6 @@ convert_video_file() {
         return 1
     fi
 
-
     # Generate thumbnail
     ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$THUMBNAIL_LOG"
 
@@ -129,10 +105,6 @@ convert_video_file() {
         echo "Failed to generate thumbnail: $input_file" | tee -a "$SKIPPED_LOG"
     fi
 }
-
-
-
-
 
 # Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
@@ -166,6 +138,18 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     # Search for video file in the input directory
     video_file=$(find "$INPUT_DIR" -type f -name "*$file_id*" -print -quit)
+
+    # Fallback to video_name if file_id fails
+    if [[ -z "$video_file" && -n "$video_name" ]]; then
+        log_debug "Fallback to video_name matching: $video_name"
+        video_file=$(find "$INPUT_DIR" -type f -name "*$video_name*" -print -quit)
+    fi
+
+    # Fallback to thumbnail_name if video_name fails
+    if [[ -z "$video_file" && -n "$thumbnail_name" ]]; then
+        log_debug "Fallback to thumbnail_name matching: $thumbnail_name"
+        video_file=$(find "$INPUT_DIR" -type f -name "*$thumbnail_name*" -print -quit)
+    fi
 
     if [[ -z "$video_file" ]]; then
         echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
