@@ -158,7 +158,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
             originalname="${originalname}.mp4"
         fi
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname" | tee -a "$SKIPPED_LOG"
-        log_debug "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname""
+        log_debug "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname"
     fi
 
 
