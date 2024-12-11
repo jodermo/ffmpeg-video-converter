@@ -23,7 +23,7 @@ Make sure the script has executable permissions. Run:
 3. Run Script (without video source CSV)
     - Run: `bash batch_convert.sh`
 
-4. Whatch result
+4. Watch result
     - Converted videos in [output_videos/](./output_videos)
     - Generated thumbnails in [thumbnails/](./thumbnails)
     - Output logs in [logs/](./logs)
