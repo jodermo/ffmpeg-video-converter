@@ -1,4 +1,15 @@
+
 #!/bin/bash
+
+# Debug mode (set to 1 to enable debug logs, 0 to disable)
+DEBUG=1
+
+# Debug log function
+log_debug() {
+    if [[ "$DEBUG" -eq 1 ]]; then
+        echo "[DEBUG] $1" | tee -a "$LOG_DIR/debug.log"
+    fi
+}
 
 # File Paths
 FILE_NAMES_CSV="./csv_data/File.csv"
@@ -15,22 +26,27 @@ THUMBNAIL_LOG="$LOG_DIR/generated_thumbnails.log"
 # Ensure directories exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
+log_debug "Directories ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
+
 # Video parameters
 WIDTH="1920"
 HEIGHT="1080"
-QUALITY="30"        # CRF value (lower = higher quality, larger file size)
-PRESET="slow"        # FFmpeg preset (slower = better compression)
-AUDIO_BITRATE="128k" # Audio bitrate
+QUALITY="30"
+PRESET="slow"
+AUDIO_BITRATE="128k"
 
 # Thumbnail parameters
 THUMBNAIL_TIME="00:00:02"
-THUMBNAIL_QUALITY="2"  # Lower value = higher quality
+THUMBNAIL_QUALITY="2"
 
 # Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
+    log_debug "Missing CSV files: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
     exit 1
 fi
+
+log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
 # Function to check for a matching video file
 get_video_file() {
@@ -113,6 +129,11 @@ convert_video_file() {
         echo "Failed to generate thumbnail: $input_file" | tee -a "$SKIPPED_LOG"
     fi
 }
+
+
+
+
+
 # Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
     if [[ "$video_id" == "id" ]]; then
@@ -128,6 +149,8 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     thumbnail_name=$(basename "$thumbnail")
     video_name=$(basename "$src")
 
+    log_debug "Processing Video ID=$video_id, File ID=$file_id, Thumbnail Name=$thumbnail_name, Video Name=$video_name"
+
     # Determine output base name
     base_name=""
     if [[ -n "$thumbnail_name" ]]; then
@@ -139,21 +162,28 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     fi
 
     echo "Processing Video ID: $video_id, File ID: $file_id, Base Name: $base_name" | tee -a "$COMPLETED_LOG"
+    log_debug "Base name determined: $base_name"
 
     # Search for video file in the input directory
     video_file=$(find "$INPUT_DIR" -type f -name "*$file_id*" -print -quit)
-    
+
     if [[ -z "$video_file" ]]; then
         echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
+        log_debug "No matching video file found for File ID=$file_id in INPUT_DIR=$INPUT_DIR"
         continue
     fi
+
+    log_debug "Video file found: $video_file"
 
     # Determine orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>/dev/null)
     if [[ -z "$resolution" ]]; then
         echo "Unable to get resolution for file: $video_file" | tee -a "$SKIPPED_LOG"
+        log_debug "Failed to get resolution for file: $video_file"
         continue
     fi
+
+    log_debug "Resolution obtained: $resolution"
 
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
@@ -163,6 +193,10 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         is_portrait="true"
     fi
 
+    log_debug "Video orientation determined: is_portrait=$is_portrait"
+
+    # Convert video and generate thumbnail
     convert_video_file "$video_file" "$is_portrait" "$base_name"
 done < "$VIDEO_SOURCES_CSV"
 
+log_debug "Processing completed for VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
