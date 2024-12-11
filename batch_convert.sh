@@ -66,28 +66,25 @@ is_already_processed() {
 
 
 
-# Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
 
-    # Step 1: Decode URI-encoded characters
+    # Decode URI-encoded characters
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Step 2: Fix misencoded characters (e.g., UTF-8 issues from CSV)
+    # Fix misencoded characters (e.g., UTF-8 issues)
     filename=$(echo "$filename" |
-        # Replace common UTF-8 misencoded characters
-        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |  # German Umlauts
-        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |  # Fancy quotes and dashes
-        sed 's/â€¦/.../g; s/â€‹//g' |  # Ellipsis and zero-width space
-        sed 's/Ã©/é/g; s/Ã¨/è/g; s/Ãª/ê/g; s/Ã«/ë/g' |  # Accented "e"
-        sed 's/Ã¡/á/g; s/Ã /à/g; s/Ã¢/â/g; s/Ã£/ã/g; s/Ã¤/ä/g; s/Ã¥/å/g' |  # Accented "a"
-        sed 's/Ã³/ó/g; s/Ã²/ò/g; s/Ã´/ô/g; s/Ãµ/õ/g; s/Ã¶/ö/g; s/Ã¸/ø/g' |  # Accented "o"
-        sed 's/Ãº/ú/g; s/Ã¹/ù/g; s/Ã»/û/g; s/Ã¼/ü/g' |  # Accented "u"
-        sed 's/Ã§/ç/g; s/Ã±/ñ/g; s/Ã½/ý/g; s/Ã¿/ÿ/g'   # Special characters
+        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |
+        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |
+        sed 's/â€¦/.../g; s/â€‹//g' |
+        sed 's/Ã©/é/g; s/Ã¨/è/g; s/Ãª/ê/g; s/Ã«/ë/g' |
+        sed 's/Ã¡/á/g; s/Ã /à/g; s/Ã¢/â/g; s/Ã£/ã/g; s/Ã¤/ä/g; s/Ã¥/å/g' |
+        sed 's/Ã³/ó/g; s/Ã²/ò/g; s/Ã´/ô/g; s/Ãµ/õ/g; s/Ã¶/ö/g; s/Ã¸/ø/g' |
+        sed 's/Ãº/ú/g; s/Ã¹/ù/g; s/Ã»/û/g; s/Ã¼/ü/g' |
+        sed 's/Ã§/ç/g; s/Ã±/ñ/g; s/Ã½/ý/g; s/Ã¿/ÿ/g'
     )
 
-
-    # Step 3: Replace German Umlauts and other special characters
+    # Replace German Umlauts and other special characters
     filename=$(echo "$filename" |
         sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |
         sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' |
@@ -95,20 +92,21 @@ normalize_name() {
         sed 's/œ/oe/g; s/æ/ae/g'
     )
 
-    # Step 4: Normalize Unicode to NFC (Canonical Composition)
-    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c)
+    # Normalize Unicode to NFC
+    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | uconv -x any-nfc)
 
-    # Step 5: Replace unsafe characters and spaces
+    # Replace unsafe characters and spaces
     filename=$(echo "$filename" |
-        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
-        sed 's/[^a-zA-Z0-9._-]//g'  # Remove invalid characters
+        sed 's/[[:space:]]\+/_/g' |
+        sed 's/[^a-zA-Z0-9._-]//g'
     )
+
+    # Convert to lowercase for case-insensitive matching
+    filename=$(echo "$filename" | tr '[:upper:]' '[:lower:]')
 
     echo "$filename"
 }
 
-
-# Function to find a file in INPUT_DIR based on the normalized original name
 find_file_by_originalname() {
     local originalname="$1"
     local normalized_original=$(normalize_name "$originalname")
@@ -120,7 +118,6 @@ find_file_by_originalname() {
         # Debug: Log comparisons
         echo "[DEBUG] Comparing: '$filename' -> '$normalized_file' with '$originalname' -> '$normalized_original'" >> "$SYSTEM_LOG"
 
-        # Compare normalized names
         if [[ "$normalized_original" == "$normalized_file" ]]; then
             echo "$file"
             return
@@ -129,6 +126,7 @@ find_file_by_originalname() {
 
     echo ""
 }
+
 
 
 # Function to convert video and generate thumbnail
