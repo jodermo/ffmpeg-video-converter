@@ -10,10 +10,12 @@ This scripts are designed to process all video files in a specified input direct
     - [thumbnails/](./thumbnails): *Extracted thumbnails*
     - [logs/](./logs): *Output logs*
     - [batch_convert.sh](./batch_convert.sh): *Bash file for linux and Mac*
+    - [reset_all.sh](./reset_all.sh): *Bash file for linux and Mac*
 
 1. Check the Script's Permissions
 Make sure the script has executable permissions. Run:
     - `chmod +x batch_convert.sh`
+    - `chmod +x reset_all.sh`
 
 2. Drop your video data
     - Drop `File.csv` to [csv_data/](./csv_data)
@@ -27,6 +29,9 @@ Make sure the script has executable permissions. Run:
     - Converted videos in [output_videos/](./output_videos)
     - Generated thumbnails in [thumbnails/](./thumbnails)
     - Output logs in [logs/](./logs)
+
+4. Reset all, delete logs and generated stuff
+    - Run: `bash reset_all.sh`
 
 ## Install ffmpeg on linux
 
