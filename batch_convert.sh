@@ -69,13 +69,32 @@ is_already_processed() {
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
+    
+    # Decode misencoded characters (handle UTF-8 interpreted as Latin-1)
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')" |
-        iconv -f utf-8 -t utf-8 -c |  # Decode UTF-8
-        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g' |  # Replace Umlauts
+        iconv -f utf-8 -t utf-8 -c |
+        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |
+        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |
+        sed 's/â€¦/.../g; s/â€‹//g')
+
+    # Replace German Umlauts and other special characters
+    filename=$(echo "$filename" |
+        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |
+        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' |
+        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |
+        sed 's/œ/oe/g; s/æ/ae/g')
+
+    # Normalize Unicode to NFC (Canonical Composition)
+    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | python3 -c "import unicodedata, sys; print(unicodedata.normalize('NFC', sys.stdin.read()))")
+
+    # Replace unsafe characters and spaces
+    filename=$(echo "$filename" |
         tr '[:upper:]' '[:lower:]' |  # Convert to lowercase
         sed 's/[[:space:]]/_/g; s/[^a-zA-Z0-9._-]//g')  # Remove invalid chars
+
     echo "$filename"
 }
+
 
 
 # Function to find a file in INPUT_DIR based on the normalized original name
