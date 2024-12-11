@@ -102,11 +102,7 @@ find_file_by_originalname() {
 
     # Loop through all files in INPUT_DIR
     find "$INPUT_DIR" -type f | while read -r file; do
-        # Ignore README.md
-        if [[ "$(basename "$file")" == "README.md" ]]; then
-            log_debug "Skipping file: $file (README.md)"
-            continue
-        fi
+        [[ "$(basename "$file")" == "README.md" ]] && continue
 
         # Normalize the current file's name
         local normalized_file=$(normalize_name "$(basename "$file")")
@@ -120,10 +116,10 @@ find_file_by_originalname() {
         fi
     done
 
-    # If no match is found, return empty
     log_debug "No match found for: $originalname"
     echo ""
 }
+
 
 
 # Function to convert video and generate thumbnail
