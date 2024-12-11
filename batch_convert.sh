@@ -52,6 +52,17 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
+# Function to check if a file has already been processed
+is_already_processed() {
+    local input_file="$1"
+
+    # Check if input_file exists in the completed log
+    if grep -qF "$input_file" "$COMPLETED_LOG"; then
+        return 0 # File is processed
+    fi
+
+    return 1 # File is not processed
+}
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
@@ -178,6 +189,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     if [[ "$video_id" == "id" ]]; then
         continue
     fi
+
     timestamp=$(date "+%Y-%m-%d %H:%M:%S")
 
     # Extract file names from src and thumbnail
@@ -189,24 +201,23 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
 
     if [[ -z "$originalname" ]]; then
-        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-        # Extract original name from the src URL
         originalname=$(basename "$src")  # Extract the last component of the URL
-        originalname="${originalname%.*}"  # Remove the file extension if it exists
-        # Append .mp4 if not already present
-        if [[ "$originalname" != *.mp4 ]]; then
-            originalname="${originalname}.mp4"
-        fi
+        originalname="${originalname%.*}"  # Remove file extension
+        [[ "$originalname" != *.mp4 ]] && originalname="${originalname}.mp4"
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname" | tee -a "$SKIPPED_LOG"
         log_debug "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname"
     fi
 
-
     # Search for the video file in INPUT_DIR
     video_file=$(find_file_by_originalname "$originalname")
-
     if [[ -z "$video_file" ]]; then
         echo "[$timestamp] Video file not found for Original Name: $originalname, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        continue
+    fi
+
+    # Check if the file is already processed
+    if is_already_processed "$video_file"; then
+        echo "[$timestamp] Skipping already processed file: $video_file" | tee -a "$SYSTEM_LOG"
         continue
     fi
 
@@ -227,6 +238,5 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     # Convert video and generate thumbnail using extracted names
     convert_video_file "$video_id" "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}" "$originalname" "$aws_key"
-done < "$VIDEO_SOURCES_CSV"
 
-log_debug "Processing completed for VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
+done < "$VIDEO_SOURCES_CSV"
