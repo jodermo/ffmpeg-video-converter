@@ -63,7 +63,7 @@ fi
 
 # Function to find a file by name
 find_file_by_originalname() {
-    local originalname=$(echo "$1" | sed 's/^"//;s/"$//;s/\r//;s/ /_/g')
+    local originalname=$(echo "$1")
     log_debug "Searching for sanitized file name: $originalname"
     log_debug "Files available in $INPUT_DIR:"
     find "$INPUT_DIR" -type f -print | tee -a "$SYSTEM_LOG"
