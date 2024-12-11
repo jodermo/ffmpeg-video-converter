@@ -90,17 +90,24 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
+    # Get video duration for progress calculation
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Round to the nearest second
+
     # Convert video with progress
+    echo "[$current_timestamp] Starting conversion for Video ID: $video_id, Input: $input_file, Output: $output_file"
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
         -progress pipe:2 2>&1 | while read -r line; do
             if [[ "$line" == "out_time_ms="* ]]; then
-                current_time_ms=${line#out_time_ms=}
-                current_time=$((current_time_ms / 1000000))
-                progress=$((current_time * 100 / duration))
-                printf "\rCompressing: [%3d%%] Output: %s, Video ID: %s" "$progress" "$output_file" "$video_id"
+                local current_time_ms=${line#out_time_ms=}
+                local current_time=$((current_time_ms / 1000000))
+                local progress=$((current_time * 100 / duration))
+                printf "\r[%s] Compressing Video ID: %s, Output: %s [%3d%%]" \
+                    "$current_timestamp" "$video_id" "$output_file" "$progress"
             fi
         done
     echo "" # New line after progress bar
