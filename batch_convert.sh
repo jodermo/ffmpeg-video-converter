@@ -70,27 +70,16 @@ is_already_processed() {
 normalize_name() {
     local filename="$1"
     
-    # Decode misencoded characters (handle UTF-8 interpreted as Latin-1)
-    filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')" |
-        iconv -f utf-8 -t utf-8 -c |
-        sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |
-        sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |
-        sed 's/â€¦/.../g; s/â€‹//g')
+    # Decode URI-encoded characters
+    filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Replace German Umlauts and other special characters
+    # Normalize Unicode to NFC
+    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c)
+
+    # Replace spaces with underscores and remove all non-alphanumeric, dot, dash, and underscore characters
     filename=$(echo "$filename" |
-        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |
-        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' |
-        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |
-        sed 's/œ/oe/g; s/æ/ae/g')
-
-    # Normalize Unicode to NFC (Canonical Composition)
-    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | python3 -c "import unicodedata, sys; print(unicodedata.normalize('NFC', sys.stdin.read()))")
-
-    # Replace unsafe characters and spaces
-    filename=$(echo "$filename" |
-        tr '[:upper:]' '[:lower:]' |  # Convert to lowercase
-        sed 's/[[:space:]]/_/g; s/[^a-zA-Z0-9._-]//g')  # Remove invalid chars
+        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
+        sed 's/[^a-zA-Z0-9._-]//g')  # Remove invalid characters
 
     echo "$filename"
 }
