@@ -47,11 +47,12 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
-# Log files in INPUT_DIR for debugging
-log_debug "Files in INPUT_DIR:"
-ls -1 "$INPUT_DIR" | while read -r file; do
-    log_debug "  - $file"
-done
+# Function to find file in INPUT_DIR based on originalname
+find_file_by_originalname() {
+    local originalname="$1"
+    local matched_file=$(find "$INPUT_DIR" -type f -name "$originalname" -print -quit)
+    echo "$matched_file"
+}
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
@@ -112,62 +113,34 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
-    # Clean up inputs
-    file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    src=$(echo "$src" | sed 's/^"//;s/"$//')
-    thumbnail=$(echo "$thumbnail" | sed 's/^"//;s/"$//')
-
-    # Extract names
-    thumbnail_name=$(basename "$thumbnail")
-    video_name=$(basename "$src")
-
-    log_debug "Processing Video ID=$video_id, File ID=$file_id, Thumbnail Name=$thumbnail_name, Video Name=$video_name"
-
-    # Determine output base name
-    base_name=""
-    if [[ -n "$thumbnail_name" ]]; then
-        base_name="${thumbnail_name%.*}"
-    elif [[ -n "$video_name" ]]; then
-        base_name="${video_name%.*}"
-    else
-        base_name="$file_id"
+    # Find the original name in File.csv using file_id
+    originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+    
+    if [[ -z "$originalname" ]]; then
+        echo "Original name not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
+        log_debug "Original name not found for File ID=$file_id"
+        continue
     fi
 
-    echo "Processing Video ID: $video_id, File ID: $file_id, Base Name: $base_name" | tee -a "$COMPLETED_LOG"
-    log_debug "Base name determined: $base_name"
-
-    # Search for video file in the input directory
-    video_file=$(find "$INPUT_DIR" -type f -name "*$file_id*" -print -quit)
-
-    # Fallback to video_name if file_id fails
-    if [[ -z "$video_file" && -n "$video_name" ]]; then
-        log_debug "Fallback to video_name matching: $video_name"
-        video_file=$(find "$INPUT_DIR" -type f -name "*$video_name*" -print -quit)
-    fi
-
-    # Fallback to thumbnail_name if video_name fails
-    if [[ -z "$video_file" && -n "$thumbnail_name" ]]; then
-        log_debug "Fallback to thumbnail_name matching: $thumbnail_name"
-        video_file=$(find "$INPUT_DIR" -type f -name "*$thumbnail_name*" -print -quit)
-    fi
+    # Search for the video file in INPUT_DIR
+    video_file=$(find_file_by_originalname "$originalname")
 
     if [[ -z "$video_file" ]]; then
-        echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
-        log_debug "No matching video file found for File ID=$file_id in INPUT_DIR=$INPUT_DIR"
+        echo "Video file not found for Original Name: $originalname" | tee -a "$SKIPPED_LOG"
+        log_debug "No video file found for Original Name=$originalname in INPUT_DIR=$INPUT_DIR"
         continue
     fi
 
     log_debug "Video file found: $video_file"
 
-    # Determine orientation
+    # Determine base name and orientation
+    base_name="${originalname%.*}"
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>/dev/null)
     if [[ -z "$resolution" ]]; then
         echo "Unable to get resolution for file: $video_file" | tee -a "$SKIPPED_LOG"
         log_debug "Failed to get resolution for file: $video_file"
         continue
     fi
-
-    log_debug "Resolution obtained: $resolution"
 
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
