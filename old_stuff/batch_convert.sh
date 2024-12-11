@@ -52,11 +52,51 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
-# Function to find file in INPUT_DIR based on originalname
+# Normalize file names (e.g., trim spaces, convert to lowercase)
+normalize_name() {
+    local filename="$1"
+
+    # Decode URI-encoded characters using Perl
+    local decoded=$(perl -MURI::Escape -e "print uri_unescape('$filename');")
+
+    # Normalize the decoded filename
+    local normalized=$(echo "$decoded" |
+        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |  # Replace German Umlauts
+        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' | # Normalize accented characters
+        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |  # Additional diacritics
+        sed 's/œ/oe/g; s/æ/ae/g' |  # Ligatures
+        sed 's/[’‘‹›‚]/_/g; s/[“”«»„]/_/g; s/[©®™]/_/g' | # Remove quotes and symbols
+        tr -d '\n\r' |  # Remove newlines and carriage returns
+        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
+        sed 's/[^a-zA-Z0-9._-]//g'  # Remove remaining invalid characters
+    )
+
+    echo "$normalized"
+}
+
+
+# Function to find a file in INPUT_DIR based on the normalized original name
 find_file_by_originalname() {
     local originalname="$1"
-    local matched_file=$(find "$INPUT_DIR" -type f -name "$originalname" -print -quit)
-    echo "$matched_file"
+    local normalized_original=$(normalize_name "$originalname")
+
+    # Loop through all files in INPUT_DIR
+    find "$INPUT_DIR" -type f | while read -r file; do
+        # Ignore README.md
+        [[ "$(basename "$file")" == "README.md" ]] && continue
+
+        # Normalize the current file's name
+        local normalized_file=$(normalize_name "$(basename "$file")")
+
+        # Compare normalized names
+        if [[ "$normalized_original" == "$normalized_file" ]]; then
+            echo "$file"
+            return
+        fi
+    done
+
+    # If no match is found, return empty
+    echo ""
 }
 
 # Function to convert video and generate thumbnail
@@ -90,17 +130,24 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
+    # Get video duration for progress calculation
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Round to the nearest second
+
     # Convert video with progress
+    echo "[$current_timestamp] Starting conversion for Video ID: $video_id, Input: $input_file, Output: $output_file"
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
         -progress pipe:2 2>&1 | while read -r line; do
             if [[ "$line" == "out_time_ms="* ]]; then
-                current_time_ms=${line#out_time_ms=}
-                current_time=$((current_time_ms / 1000000))
-                progress=$((current_time * 100 / duration))
-                printf "\rCompressing: [%3d%%] Output: %s, Video ID: %s" "$progress" "$output_file" "$video_id"
+                local current_time_ms=${line#out_time_ms=}
+                local current_time=$((current_time_ms / 1000000))
+                local progress=$((current_time * 100 / duration))
+                printf "\r[%s] Compressing Video ID: %s, Output: %s [%3d%%]" \
+                    "$current_timestamp" "$video_id" "$output_file" "$progress"
             fi
         done
     echo "" # New line after progress bar
@@ -142,9 +189,18 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
 
     if [[ -z "$originalname" ]]; then
-        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        continue
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        # Extract original name from the src URL
+        originalname=$(basename "$src")  # Extract the last component of the URL
+        originalname="${originalname%.*}"  # Remove the file extension if it exists
+        # Append .mp4 if not already present
+        if [[ "$originalname" != *.mp4 ]]; then
+            originalname="${originalname}.mp4"
+        fi
+        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname" | tee -a "$SKIPPED_LOG"
+        log_debug "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname"
     fi
+
 
     # Search for the video file in INPUT_DIR
     video_file=$(find_file_by_originalname "$originalname")
