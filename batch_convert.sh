@@ -61,9 +61,11 @@ get_video_file() {
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
-    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}").mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}").jpg"
     local is_portrait="$2"
+
+    local base_name="$(basename "${input_file%.*}")"
+    local output_file="$OUTPUT_DIR/${base_name}.mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/${base_name}.jpg"
 
     mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
@@ -126,6 +128,16 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
     if [[ -n "$video_file" ]]; then
+        # Determine the output file name based on the input file name
+        base_name="$(basename "${video_file%.*}")"
+        output_file="$OUTPUT_DIR/${base_name}.mp4"
+
+        # Check if output file already exists
+        if [[ -f "$output_file" ]]; then
+            echo "Skipping conversion for File ID: $file_id because $output_file already exists." | tee -a "$SKIPPED_LOG"
+            continue
+        fi
+
         # Determine video orientation
         resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
         width=$(echo "$resolution" | cut -d',' -f1)
@@ -137,7 +149,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
             is_portrait="false"
         fi
 
-        # Extract file name from thumbnail URL
+        # Extract file name from thumbnail URL (if needed)
         thumbnail_file=$(basename "$thumbnail")
         echo "Extracted Thumbnail File: $thumbnail_file" | tee -a "$COMPLETED_LOG"
 
