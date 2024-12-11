@@ -63,26 +63,27 @@ fi
 
 # Function to find a file by name
 find_file_by_originalname() {
-    local originalname=$(echo "$1")
+    local originalname=$(echo "$1" | sed 's/^"//;s/"$//;s/\r//')
 
-    # Special debugging for specific file
+    # Debugging for a specific file
     if [[ "$originalname" == "HDI_EMPLOYEE_2021_Azubi_Christian_220413_1.mp4" ]]; then
         log_debug "Searching for sanitized file name: $originalname"
         log_debug "Files available in $INPUT_DIR:"
         find "$INPUT_DIR" -type f -print | tee -a "$SYSTEM_LOG"
     fi
 
-    # Search for the file
+    # Search for the file in the input directory
     local matched_file=$(find "$INPUT_DIR" -type f -iname "$originalname" -print -quit)
-    
-    # Log error if the file is not found and matches specific criteria
+
+    # Log error if the file is not found
     if [[ -z "$matched_file" && "$originalname" == "HDI_EMPLOYEE_2021_Azubi_Christian_220413_1.mp4" ]]; then
         log_error "File not found for: $originalname"
     fi
 
-    # Return the matched file (empty if not found)
+    # Return the matched file path or empty string if not found
     echo "$matched_file"
 }
+
 
 
 # Function to convert video and generate thumbnail
