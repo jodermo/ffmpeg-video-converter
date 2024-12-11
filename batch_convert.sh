@@ -50,8 +50,20 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
     # Match file entry from FILE_NAMES_CSV using fileId
     MATCHING_LINE=$(grep -F ",$FILEID," "$FILE_NAMES_CSV" | head -n 1)
     if [[ -z "$MATCHING_LINE" ]]; then
-        echo "Skipping: No matching entry for fileId $FILEID in File.csv" | tee -a "$SKIPPED_LOG"
-        continue
+        # Check if any key from FILE_NAMES_CSV is part of the SRC field
+        KEY_FOUND=""
+        while IFS=',' read -r FILE_ID USER_ID NAME FILENAME ORIGINALNAME MIMETYPE DESTINATION PATH SIZE CREATED THUMBNAIL LOCATION BUCKET KEY TYPE PROGRESSSTATUS VIEWS TOPIXID PORTRAIT; do
+            if [[ "$SRC" == *"$KEY"* ]]; then
+                MATCHING_LINE=$(echo "$FILE_ID,$USER_ID,$NAME,$FILENAME,$ORIGINALNAME,$MIMETYPE,$DESTINATION,$PATH,$SIZE,$CREATED,$THUMBNAIL,$LOCATION,$BUCKET,$KEY,$TYPE,$PROGRESSSTATUS,$VIEWS,$TOPIXID,$PORTRAIT")
+                KEY_FOUND="$KEY"
+                break
+            fi
+        done < <(tail -n +2 "$FILE_NAMES_CSV")
+
+        if [[ -z "$MATCHING_LINE" ]]; then
+            echo "Skipping: No matching entry for fileId $FILEID or SRC key match in File.csv" | tee -a "$SKIPPED_LOG"
+            continue
+        fi
     fi
 
     ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
