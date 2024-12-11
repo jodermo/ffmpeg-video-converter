@@ -75,7 +75,7 @@ convert_video_file() {
     fi
 
     # Convert video
-    ffmpeg -y -i -v "$input_file" \
+    ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
@@ -89,7 +89,7 @@ convert_video_file() {
     fi
 
     # Generate thumbnail
-    ffmpeg -y -i -v "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" \
+    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" \
         2>> "$THUMBNAIL_LOG"
 
     if [[ $? -eq 0 ]]; then
