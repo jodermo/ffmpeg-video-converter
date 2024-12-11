@@ -52,46 +52,34 @@ fi
 
 log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
 
+# Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
-
-    # Replace Umlauts and special characters
-    local normalized=$(echo "$filename" |
-        sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |                                  # Trim spaces
-        tr '[:upper:]' '[:lower:]' |                                                # Convert to lowercase
-        tr ' ' '_'                                                                  # Replace spaces with underscores
-    )
-
-    echo "$filename"
+    echo "$filename" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]' | tr ' ' '_'
 }
 
+# Function to find a file in INPUT_DIR based on the normalized original name
+find_file_by_originalname() {
+    local originalname="$1"
+    local normalized_original=$(normalize_name "$originalname")
 
-# Function to search and normalize all files
-search_and_compare_files() {
-    local input_dir="$1"
-    if [[ ! -d "$input_dir" ]]; then
-        echo "Directory '$input_dir' does not exist."
-        return 1
-    fi
+    # Loop through all files in INPUT_DIR
+    find "$INPUT_DIR" -type f | while read -r file; do
+        # Ignore README.md
+        [[ "$(basename "$file")" == "README.md" ]] && continue
 
-    echo "Searching and normalizing file names in directory: $input_dir"
-    echo "==================================================="
+        # Normalize the current file's name
+        local normalized_file=$(normalize_name "$(basename "$file")")
 
-    find "$input_dir" -type f | while read -r file; do
-        # Get the basename and its normalized version
-        local default_name=$(basename "$file")
-        local normalized_name=$(normalize_name "$default_name")
-
-        # Output the original and normalized names
-        echo "Default Name: $default_name"
-        echo "Normalized Name: $normalized_name"
-
-        # Check if normalized name already exists in the directory
-        if [[ "$default_name" != "$normalized_name" && -e "$input_dir/$normalized_name" ]]; then
-            echo "Conflict: A file with normalized name '$normalized_name' already exists."
+        # Compare normalized names
+        if [[ "$normalized_original" == "$normalized_file" ]]; then
+            echo "$file"
+            return
         fi
-        echo "---------------------------------------------------"
     done
+
+    # If no match is found, return empty
+    echo ""
 }
 
 # Function to convert video and generate thumbnail
