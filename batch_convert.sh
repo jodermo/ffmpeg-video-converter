@@ -62,7 +62,7 @@ normalize_name() {
         tr ' ' '_'                                                                  # Replace spaces with underscores
     )
 
-    echo "$normalized"
+    echo "$filename"
 }
 
 
