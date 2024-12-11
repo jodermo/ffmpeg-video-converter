@@ -37,92 +37,74 @@ fi
 > "$COMPLETED_LOG"
 > "$THUMBNAIL_LOG"
 
-# Function to normalize filenames (remove spaces, dashes, etc.)
+# Normalize filenames (remove spaces)
 normalize_filename() {
     echo "$1" | tr -d '[:space:]'
 }
 
-# Function to extract thumbnail URL based on key from VIDEO_SOURCES_CSV
-get_thumbnail_url() {
-    local key=$1
-    grep -F "$key" "$VIDEO_SOURCES_CSV" | cut -d',' -f2 | tr -d '"' | xargs
-}
+# Process video sources
+while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
+    # Skip header
+    if [[ "$ID" == "id" ]]; then continue; fi
 
-# Process videos
-for INPUT_FILE in "$INPUT_DIR"/*.{mp4,mov,avi,mkv,wmv}; do
-    # Check if the file exists (necessary for globbing)
-    if [[ ! -f "$INPUT_FILE" ]]; then
+    # Match file entry from FILE_NAMES_CSV using fileId
+    MATCHING_LINE=$(grep -F ",$FILEID," "$FILE_NAMES_CSV" | head -n 1)
+    if [[ -z "$MATCHING_LINE" ]]; then
+        echo "Skipping: No matching entry for fileId $FILEID in File.csv" | tee -a "$SKIPPED_LOG"
         continue
     fi
 
-    BASENAME=$(basename "$INPUT_FILE")
-    NORMALIZED_BASENAME=$(normalize_filename "$BASENAME")
+    ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
+    NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
 
-    MATCHING_LINE=$(grep -i -F "$BASENAME" "$FILE_NAMES_CSV" | head -n 1)
-
-    if [[ -z "$MATCHING_LINE" ]]; then
-        MATCHING_LINE=$(grep -i -F "$NORMALIZED_BASENAME" "$FILE_NAMES_CSV" | head -n 1)
+    INPUT_FILE="$INPUT_DIR/$ORIGINALNAME"
+    if [[ ! -f "$INPUT_FILE" ]]; then
+        echo "Skipping: Input file $ORIGINALNAME not found in $INPUT_DIR" | tee -a "$SKIPPED_LOG"
+        continue
     fi
 
-    if [[ -n "$MATCHING_LINE" ]]; then
-        ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
-        NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
+    IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
+    KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
-        if [[ "$NORMALIZED_BASENAME" != "$NORMALIZED_ORIGINALNAME" ]]; then
-            echo "Skipping $BASENAME: does not match originalname ($NORMALIZED_ORIGINALNAME) in CSV after normalization." | tee -a "$SKIPPED_LOG"
-            continue
-        fi
+    # Remove `.mp4` from the key for output naming
+    KEY_NO_EXT="${KEY%.mp4}"
+    OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
 
-        IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
-        KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
+    # Determine thumbnail file name
+    THUMBNAIL_NAME=$(basename "$THUMBNAIL")
+    if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
+        THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
+    fi
+    THUMBNAIL_FILE="$THUMBNAIL_DIR/$THUMBNAIL_NAME"
 
-        # Remove `.mp4` from the key for thumbnail naming
-        KEY_NO_EXT="${KEY%.mp4}"
-
-        # Match thumbnail URL from VIDEO_SOURCES_CSV using the key
-        THUMBNAIL_URL=$(get_thumbnail_url "$KEY")
-        THUMBNAIL_NAME=$(basename "$THUMBNAIL_URL")
-
-        if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-            THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
-            echo "Warning: No valid thumbnail URL found for $BASENAME. Using default name: $THUMBNAIL_NAME" | tee -a "$THUMBNAIL_LOG"
-        fi
-
-        # Set resolution based on orientation
-        if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
-            WIDTH=$LANDSCAPE_HEIGHT
-            HEIGHT=$LANDSCAPE_WIDTH
-        else
-            WIDTH=$LANDSCAPE_WIDTH
-            HEIGHT=$LANDSCAPE_HEIGHT
-        fi
-
-        OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
-        THUMBNAIL_FILE="$THUMBNAIL_DIR/${THUMBNAIL_NAME}"
-
-        # Convert video
-        ffmpeg -y -i "$INPUT_FILE" \
-            -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
-            -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || {
-            echo "Error processing video $BASENAME" | tee -a "$SKIPPED_LOG"
-            continue
-        }
-
-        # Extract thumbnail
-        echo "Generating thumbnail for $BASENAME..." | tee -a "$THUMBNAIL_LOG"
-        ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
-
-        if [[ $? -ne 0 ]]; then
-            echo "Error: Failed to create thumbnail for $BASENAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
-            continue
-        fi
-
-        # Log success
-        echo "Completed: $BASENAME" | tee -a "$COMPLETED_LOG"
-        echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
-        echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
+    # Set resolution based on orientation
+    if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
+        WIDTH=$LANDSCAPE_HEIGHT
+        HEIGHT=$LANDSCAPE_WIDTH
     else
-        echo "Skipping $BASENAME: not found in CSV even after normalization." | tee -a "$SKIPPED_LOG"
+        WIDTH=$LANDSCAPE_WIDTH
+        HEIGHT=$LANDSCAPE_HEIGHT
     fi
-done
+
+    # Convert video
+    ffmpeg -y -i "$INPUT_FILE" \
+        -vf "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:(ow-iw)/2:(oh-ih)/2" \
+        -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
+        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$OUTPUT_FILE" || {
+        echo "Error processing video $ORIGINALNAME" | tee -a "$SKIPPED_LOG"
+        continue
+    }
+
+    # Extract thumbnail
+    ffmpeg -y -i "$INPUT_FILE" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$THUMBNAIL_FILE" 2>&1 | tee -a "$THUMBNAIL_LOG"
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to create thumbnail for $ORIGINALNAME." | tee -a "$SKIPPED_LOG" "$THUMBNAIL_LOG"
+        continue
+    fi
+
+    # Log success
+    echo "Completed: $ORIGINALNAME" | tee -a "$COMPLETED_LOG"
+    echo "Output video: $OUTPUT_FILE" >> "$COMPLETED_LOG"
+    echo "Thumbnail: $THUMBNAIL_FILE" >> "$COMPLETED_LOG"
+
+done < "$VIDEO_SOURCES_CSV"
