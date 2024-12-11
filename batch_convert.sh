@@ -17,7 +17,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     file_id=$(echo "$file_id" | xargs)  # Trim whitespace
     echo "Processing Video ID: $video_id, File ID: $file_id"
 
-    while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
+    while IFS_Files=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
         if [[ "$file_id_row" == "id" ]]; then
             continue
         fi
