@@ -69,20 +69,21 @@ is_already_processed() {
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
-    
-    # Decode URI-encoded characters
+
+    # Decode URI-encoded characters (if any)
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Normalize Unicode to NFC
-    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c)
+    # Normalize Unicode to NFC (combine decomposed characters)
+    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | python3 -c "import unicodedata, sys; print(unicodedata.normalize('NFC', sys.stdin.read()))")
 
-    # Replace spaces with underscores and remove all non-alphanumeric, dot, dash, and underscore characters
+    # Replace spaces with underscores and remove all characters except alphanumeric, dot, dash, and underscore
     filename=$(echo "$filename" |
         sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
-        sed 's/[^a-zA-Z0-9._-]//g')  # Remove invalid characters
+        sed 's/[^a-zA-Z0-9._-]//g')  # Remove all invalid characters
 
     echo "$filename"
 }
+
 
 
 
