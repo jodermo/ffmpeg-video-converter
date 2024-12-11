@@ -63,17 +63,23 @@ fi
 
 
 normalize_name() {
-    echo "$1" | tr -d '\r\n' | iconv -f UTF-8 -t ASCII//TRANSLIT | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's/[^a-z0-9._-]//g'
+    local original_name="$1"
+    local normalized_name
+
+    normalized_name=$(echo "$original_name" | tr -d '\r\n' | iconv -f UTF-8 -t ASCII//TRANSLIT | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' | sed 's/[^a-z0-9._-]//g')
+    
+    log_debug "Normalizing name: Original='$original_name', Normalized='$normalized_name'"
+    echo "$normalized_name"
 }
+
 
 # Function to find a file by name
 # Function to find a file by name with debugging logs
 find_file_by_originalname() {
     local originalname=$(normalize_name "$1")
-
     log_debug "Searching for file: Original name = '$1', Normalized name = '$originalname'"
-    log_debug "Listing all files in $INPUT_DIR with their normalized names:"
 
+    log_debug "Listing all files in $INPUT_DIR with their normalized names:"
     find "$INPUT_DIR" -type f | while read -r file; do
         local normalized_file=$(basename "$file" | normalize_name)
         log_debug "Checking file: '$file', Normalized = '$normalized_file'"
