@@ -18,7 +18,7 @@ mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 # Video parameters
 WIDTH="1920"
 HEIGHT="1080"
-QUALITY="30"        # CRF value (lower = higher quality)
+QUALITY="30"        # CRF value (lower = higher quality, larger file size)
 PRESET="slow"        # FFmpeg preset (slower = better compression)
 AUDIO_BITRATE="128k" # Audio bitrate
 
@@ -32,38 +32,38 @@ if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     exit 1
 fi
 
-# Function to find matching file.key for a given file_id in File.csv
-get_file_key_from_csv() {
+# Function to check for a matching video file
+get_video_file() {
     local file_id="$1"
-    local file_key=""
-    while IFS=',' read -r f_id userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
-        # Strip quotes
-        f_id=$(echo "$f_id" | sed 's/^"//;s/"$//')
-        key=$(echo "$key" | sed 's/^"//;s/"$//')
+    local src="$2"
+    local match_found=false
 
-        if [[ "$f_id" == "$file_id" ]]; then
-            file_key="$key"
+    while IFS=',' read -r file_id_row userId name filename originalname mimetype destination path size created file_thumbnail location bucket key type progressStatus views topixId portrait; do
+        if [[ "$file_id_row" == "id" ]]; then
+            continue
+        fi
+
+        file_id_row=$(echo "$file_id_row" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+
+        if [[ "$file_id" == "$file_id_row" ]]; then
+            echo "Match Found for File ID: $file_id" | tee -a "$COMPLETED_LOG"
+            echo "Source: $src" | tee -a "$COMPLETED_LOG"
+            match_found=true
             break
         fi
-    done < <(tail -n +2 "$FILE_NAMES_CSV") # skip header
+    done < <(cat "$FILE_NAMES_CSV")
 
-    echo "$file_key"
+    if [[ "$match_found" == false ]]; then
+        echo "No match found for File ID: $file_id in Source: $src" | tee -a "$SKIPPED_LOG"
+    fi
 }
 
 # Function to convert video and generate thumbnail
-# Arguments:
-# 1: input video path
-# 2: is_portrait ("true" or "false")
-# 3: output base name for video (without extension)
-# 4: output filename for thumbnail (already has .jpg extension)
 convert_video_file() {
     local input_file="$1"
+    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}").mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}").jpg"
     local is_portrait="$2"
-    local output_basename="$3"
-    local thumbnail_basename="$4"
-
-    local output_file="$OUTPUT_DIR/$output_basename.mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/$thumbnail_basename"
 
     mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
@@ -80,7 +80,7 @@ convert_video_file() {
         -of default=noprint_wrappers=1:nokey=1 "$input_file")
     duration=${duration%.*} # Round to nearest second
 
-    # Convert video
+    # Convert video with a clean progress bar
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
@@ -89,10 +89,8 @@ convert_video_file() {
             if [[ "$line" == "out_time_ms="* ]]; then
                 current_time_ms=${line#out_time_ms=}
                 current_time=$((current_time_ms / 1000000))
-                if [[ $duration -gt 0 ]]; then
-                    progress=$((current_time * 100 / duration))
-                    printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
-                fi
+                progress=$((current_time * 100 / duration))
+                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
             fi
         done
     echo "" # New line after progress bar
@@ -117,63 +115,34 @@ convert_video_file() {
 
 # Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
-    # Skip header
     if [[ "$video_id" == "id" ]]; then
         continue
     fi
 
-    # Clean and strip quotes
-    video_id=$(echo "$video_id" | sed 's/^"//;s/"$//')
-    file_id=$(echo "$file_id" | sed 's/^"//;s/"$//')
-    src=$(echo "$src" | sed 's/^"//;s/"$//')
-    thumbnail=$(echo "$thumbnail" | sed 's/^"//;s/"$//')
-
+    file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
     echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
 
-    # Get the file.key from File.csv for the given file_id
-    file_key=$(get_file_key_from_csv "$file_id")
+    get_video_file "$file_id" "$src"
 
-    if [[ -z "$file_key" ]]; then
-        echo "No match found for File ID: $file_id in File.csv" | tee -a "$SKIPPED_LOG"
-        continue
-    else
-        echo "Matched file.key for File ID $file_id: $file_key" | tee -a "$COMPLETED_LOG"
-    fi
+    video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
+    if [[ -n "$video_file" ]]; then
+        # Determine video orientation
+        resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
+        width=$(echo "$resolution" | cut -d',' -f1)
+        height=$(echo "$resolution" | cut -d',' -f2)
 
-    # Find the local input video file
-    video_file=$(find "$INPUT_DIR" -type f -name "*$file_id*" | head -n 1)
-    if [[ -z "$video_file" ]]; then
-        echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
-        continue
-    fi
-
-    # Determine video orientation
-    resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
-    width=$(echo "$resolution" | cut -d',' -f1)
-    height=$(echo "$resolution" | cut -d',' -f2)
-
-    if (( height > width )); then
-        is_portrait="true"
-    else
-        is_portrait="false"
-    fi
-
-    # Determine the thumbnail output filename
-    # If thumbnail is empty or NULL, fallback to using file_key as jpg
-    if [[ -z "$thumbnail" || "$thumbnail" == "NULL" ]]; then
-        thumbnail_basename="${file_key}.jpg"
-    else
-        # Extract the filename from the thumbnail URL
-        thumbnail_filename=$(basename "$thumbnail")
-        # If for some reason no extension is found, add .jpg as fallback
-        if [[ "$thumbnail_filename" != *.* ]]; then
-            thumbnail_filename="${thumbnail_filename}.jpg"
+        if (( height > width )); then
+            is_portrait="true"
+        else
+            is_portrait="false"
         fi
-        thumbnail_basename="$thumbnail_filename"
+
+        # Extract file name from thumbnail URL
+        thumbnail_file=$(basename "$thumbnail")
+        echo "Extracted Thumbnail File: $thumbnail_file" | tee -a "$COMPLETED_LOG"
+
+        convert_video_file "$video_file" "$is_portrait"
+    else
+        echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
     fi
-
-    echo "Using thumbnail basename: $thumbnail_basename" | tee -a "$COMPLETED_LOG"
-
-    # Convert video using file.key as output filename base
-    convert_video_file "$video_file" "$is_portrait" "$file_key" "$thumbnail_basename"
-done < <(tail -n +2 "$VIDEO_SOURCES_CSV") # Skip header line
+done < <(cat "$VIDEO_SOURCES_CSV")
