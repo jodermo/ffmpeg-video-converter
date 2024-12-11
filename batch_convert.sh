@@ -60,28 +60,32 @@ if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     log_error "CSV files are missing: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
     exit 1
 fi
+
+
 normalize_name() {
     echo "$1" | sed 's/[\r\n]//g' | iconv -f UTF-8 -t ASCII//TRANSLIT | tr '[:upper:]' '[:lower:]' | tr -d ' ' | tr -d '_'
 }
 # Function to find a file by name
+# Function to find a file by name with debugging logs
 find_file_by_originalname() {
     local originalname=$(normalize_name "$1")
 
-    log_debug "Searching for normalized file name: $originalname"
-    log_debug "Files available in $INPUT_DIR:"
+    log_debug "Searching for file: Original name = '$1', Normalized name = '$originalname'"
+    log_debug "Listing all files in $INPUT_DIR with their normalized names:"
 
     find "$INPUT_DIR" -type f | while read -r file; do
         local normalized_file=$(basename "$file" | normalize_name)
+        log_debug "Checking file: '$file', Normalized = '$normalized_file'"
         if [[ "$normalized_file" == "$originalname" ]]; then
+            log_debug "Match found: '$file' for normalized name = '$originalname'"
             echo "$file"
             return 0
         fi
     done
 
-    log_error "File not found for: $1 (normalized: $originalname)"
+    log_error "File not found for: Original name = '$1', Normalized name = '$originalname'"
     return 1
 }
-
 
 
 # Function to convert video and generate thumbnail
