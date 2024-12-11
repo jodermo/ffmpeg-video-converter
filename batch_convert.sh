@@ -61,8 +61,8 @@ get_video_file() {
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
-    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}")-converted.mp4"
-    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}")-thumbnail.jpg"
+    local output_file="$OUTPUT_DIR/$(basename "${input_file%.*}").mp4"
+    local thumbnail_file="$THUMBNAIL_DIR/$(basename "${input_file%.*}").jpg"
     local is_portrait="$2"
 
     mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
