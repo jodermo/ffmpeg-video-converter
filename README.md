@@ -2,6 +2,7 @@
 
 This scripts are designed to process all video files in a specified input directory, optimize them for web playback, and extract a thumbnail for each video.
 
+
 ### File structure
 
 - converter/
