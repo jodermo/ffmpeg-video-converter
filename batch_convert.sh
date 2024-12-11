@@ -51,7 +51,7 @@ get_video_file() {
             match_found=true
             break
         fi
-    done < <(cat "$FILE_NAMES_CSV")
+    done < "$FILE_NAMES_CSV"
 
     if [[ "$match_found" == false ]]; then
         echo "No match found for File ID: $file_id in Source: $src" | tee -a "$SKIPPED_LOG"
@@ -63,11 +63,10 @@ convert_video_file() {
     local input_file="$1"
     local is_portrait="$2"
 
-    local base_name="$(basename "${input_file%.*}")"
+    # Determine base name for output
+    local base_name="$3"
     local output_file="$OUTPUT_DIR/${base_name}.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/${base_name}.jpg"
-
-    mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
     # Determine scale based on orientation
     local scale=""
@@ -77,25 +76,11 @@ convert_video_file() {
         scale="${WIDTH}:${HEIGHT}"
     fi
 
-    # Total duration of the input video
-    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-        -of default=noprint_wrappers=1:nokey=1 "$input_file")
-    duration=${duration%.*} # Round to nearest second
-
-    # Convert video with a clean progress bar
+    # Convert video
     ffmpeg -y -i "$input_file" \
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-        -progress pipe:2 2>&1 | while read -r line; do
-            if [[ "$line" == "out_time_ms="* ]]; then
-                current_time_ms=${line#out_time_ms=}
-                current_time=$((current_time_ms / 1000000))
-                progress=$((current_time * 100 / duration))
-                printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
-            fi
-        done
-    echo "" # New line after progress bar
+        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" 2>>"$SKIPPED_LOG"
 
     if [[ $? -eq 0 ]]; then
         echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
@@ -105,8 +90,7 @@ convert_video_file() {
     fi
 
     # Generate thumbnail
-    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" \
-        2>> "$THUMBNAIL_LOG"
+    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$THUMBNAIL_LOG"
 
     if [[ $? -eq 0 ]]; then
         echo "Thumbnail generated: $thumbnail_file" | tee -a "$THUMBNAIL_LOG"
@@ -121,40 +105,43 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         continue
     fi
 
+    # Clean up inputs
     file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
+    src=$(echo "$src" | sed 's/^"//;s/"$//')
+    thumbnail=$(echo "$thumbnail" | sed 's/^"//;s/"$//')
+
+    # Extract names
+    thumbnail_name=$(basename "$thumbnail")
+    video_name=$(basename "$src")
+
+    # Determine output base name
+    base_name=""
+    if [[ -n "$thumbnail_name" ]]; then
+        base_name="${thumbnail_name%.*}"
+    elif [[ -n "$video_name" ]]; then
+        base_name="${video_name%.*}"
+    else
+        base_name="$file_id"
+    fi
+
+    echo "Processing Video ID: $video_id, File ID: $file_id, Base Name: $base_name" | tee -a "$COMPLETED_LOG"
 
     get_video_file "$file_id" "$src"
 
     video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
     if [[ -n "$video_file" ]]; then
-        # Determine the output file name based on the input file name
-        base_name="$(basename "${video_file%.*}")"
-        output_file="$OUTPUT_DIR/${base_name}.mp4"
-
-        # Check if output file already exists
-        if [[ -f "$output_file" ]]; then
-            echo "Skipping conversion for File ID: $file_id because $output_file already exists." | tee -a "$SKIPPED_LOG"
-            continue
-        fi
-
-        # Determine video orientation
+        # Determine orientation
         resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
         width=$(echo "$resolution" | cut -d',' -f1)
         height=$(echo "$resolution" | cut -d',' -f2)
 
+        is_portrait="false"
         if (( height > width )); then
             is_portrait="true"
-        else
-            is_portrait="false"
         fi
 
-        # Extract file name from thumbnail URL (if needed)
-        thumbnail_file=$(basename "$thumbnail")
-        echo "Extracted Thumbnail File: $thumbnail_file" | tee -a "$COMPLETED_LOG"
-
-        convert_video_file "$video_file" "$is_portrait"
+        convert_video_file "$video_file" "$is_portrait" "$base_name"
     else
         echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
     fi
-done < <(cat "$VIDEO_SOURCES_CSV")
+done < "$VIDEO_SOURCES_CSV"
