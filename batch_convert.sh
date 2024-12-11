@@ -31,7 +31,6 @@ if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
     exit 1
 fi
-
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
@@ -47,6 +46,17 @@ convert_video_file() {
         scale="${HEIGHT}:${WIDTH}"
     else
         scale="${WIDTH}:${HEIGHT}"
+    fi
+
+    # Total duration of the input video
+    local duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Round to nearest second
+
+    # Check if duration is valid
+    if [[ -z "$duration" || "$duration" -eq 0 ]]; then
+        echo "Failed to get duration for $input_file. Skipping..." | tee -a "$SKIPPED_LOG"
+        return 1
     fi
 
     # Convert video with progress bar
@@ -116,3 +126,4 @@ while IFS=',' read -r video_id src thumbnail file_id; do
         echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
     fi
 done < <(cat "$VIDEO_SOURCES_CSV")
+
