@@ -1,74 +1,68 @@
 #!/bin/bash
 
-# Load configuration from config.env
-if [[ -f "config.env" ]]; then
-    source "config.env"
-else
-    echo "Error: config.env file not found."
-    exit 1
-fi
+# Debug mode (set to 1 to enable debug logs, 0 to disable)
+DEBUG=1
 
 # Debug log function
 log_debug() {
     if [[ "$DEBUG" -eq 1 ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [DEBUG] $1" | tee -a "$SYSTEM_LOG"
+        echo "[DEBUG] $1" | tee -a "$SYSTEM_LOG"
     fi
 }
 
-# Error log function
-log_error() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" | tee -a "$SYSTEM_LOG" "$SKIPPED_LOG"
-}
+# File Paths
+FILE_NAMES_CSV="./csv_data/File.csv"
+VIDEO_SOURCES_CSV="./csv_data/video_sources.csv"
+INPUT_DIR="./input_videos"
+OUTPUT_DIR="./output_videos"
+THUMBNAIL_DIR="./thumbnails"
+LOG_DIR="./logs"
 
-# Retry function
-retry_command() {
-    local retries=$MAX_RETRIES
-    local count=0
-    until "$@"; do
-        ((count++))
-        if ((count == retries)); then
-            log_error "Command failed after $retries attempts: $*"
-            return 1
-        fi
-        log_debug "Retrying command: $*"
-        sleep "$RETRY_DELAY"
-    done
-    return 0
-}
+SKIPPED_LOG="$LOG_DIR/skipped_files.log"
+COMPLETED_LOG="$LOG_DIR/completed_files.log"
+SYSTEM_LOG="$LOG_DIR/system.log"
+CSV_LOG="$LOG_DIR/conversion_log.csv"
+MAPPING_FILE="$LOG_DIR/conversion_mapping.log"
 
-# Ensure required directories exist
+# Ensure directories exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+
 log_debug "Directories ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
 
-# Ensure mapping file exists
-touch "$MAPPING_FILE"
+# Video parameters
+WIDTH="1280"
+HEIGHT="720"
+QUALITY="30"
+PRESET="slow"
+AUDIO_BITRATE="128k"
 
-# Validate required commands
-for cmd in ffmpeg ffprobe awk; do
-    if ! command -v $cmd &> /dev/null; then
-        log_error "$cmd is not installed. Exiting."
-        exit 1
-    fi
-done
-log_debug "Required commands are available."
+# Thumbnail parameters
+THUMBNAIL_TIME="00:00:02"
+THUMBNAIL_QUALITY="2"
 
 # Initialize CSV log
 echo "Timestamp,Video ID,Original Name,AWS Key,Output File,Thumbnail File,Status" > "$CSV_LOG"
 
-# Ensure input CSV files exist
+# Ensure CSV files exist
 if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
-    log_error "CSV files are missing: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
+    echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
+    log_debug "Missing CSV files: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
     exit 1
 fi
 
-# Function to find a file by name
+log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
+
+# Function to find file in INPUT_DIR based on originalname
 find_file_by_originalname() {
-    local search_name="$1"
-    find "$INPUT_DIR" -type f -iname "${search_name}*" -print -quit
+    local originalname="$1"
+    local matched_file=$(find "$INPUT_DIR" -type f -name "$originalname" -print -quit)
+    echo "$matched_file"
 }
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
+    local current_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    
     local video_id="$1"
     local input_file="$2"
     local is_portrait="$3"
@@ -76,87 +70,107 @@ convert_video_file() {
     local thumbnail_filename="$5"
     local original_name="$6"
     local aws_key="$7"
-
     local output_file="$OUTPUT_DIR/${output_filename}.mp4"
     local thumbnail_file="$THUMBNAIL_DIR/${thumbnail_filename}.jpg"
 
-    # Check if the file has already been converted
+    # Check mapping file for existing conversion
     local existing_output=$(grep -F "$input_file," "$MAPPING_FILE" | cut -d',' -f2)
     if [[ -n "$existing_output" && -f "$existing_output" ]]; then
         cp "$existing_output" "$output_file"
-        log_debug "Reused converted file: $output_file from $existing_output"
-        echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Reused" >> "$CSV_LOG"
-    else
-        # Determine scale
-        local scale=""
-        if [[ "$is_portrait" == "true" ]]; then
-            scale="${HEIGHT}:${WIDTH}"
-        else
-            scale="${WIDTH}:${HEIGHT}"
-        fi
-
-        # Convert the video
-        ffmpeg -y -i "$input_file" \
-            -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
-            -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" || {
-            log_error "Failed to convert video: $input_file"
-            echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
-            return 1
-        }
-        echo "$input_file,$output_file" >> "$MAPPING_FILE"
-        log_debug "Video converted successfully: $output_file"
+        echo "[$current_timestamp] Reused converted file: $output_file from $existing_output" | tee -a "$COMPLETED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Reused" >> "$CSV_LOG"
+        return 0
     fi
 
-    # Generate a new thumbnail
-    retry_command ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" || {
-        log_error "Failed to generate thumbnail: $input_file"
-        echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Thumbnail" >> "$CSV_LOG"
-        return 1
-    }
+    # Determine scale based on orientation
+    local scale=""
+    if [[ "$is_portrait" == "true" ]]; then
+        scale="${HEIGHT}:${WIDTH}"
+    else
+        scale="${WIDTH}:${HEIGHT}"
+    fi
 
-    log_debug "Thumbnail generated: $thumbnail_file"
-    echo "$(date '+%Y-%m-%d %H:%M:%S'),$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
+    # Convert video with progress
+    ffmpeg -y -i "$input_file" \
+        -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
+        -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
+        -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
+        -progress pipe:2 2>&1 | while read -r line; do
+            if [[ "$line" == "out_time_ms="* ]]; then
+                current_time_ms=${line#out_time_ms=}
+                current_time=$((current_time_ms / 1000000))
+                progress=$((current_time * 100 / duration))
+                printf "\rCompressing: [%3d%%] Output: %s, Video ID: %s" "$progress" "$output_file" "$video_id"
+            fi
+        done
+    echo "" # New line after progress bar
+
+    if [[ $? -eq 0 ]]; then
+        echo "[$current_timestamp] Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "$input_file,$output_file" >> "$MAPPING_FILE" # Save mapping
+    else
+        echo "[$current_timestamp] Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Conversion" >> "$CSV_LOG"
+        return 1
+    fi
+
+    # Generate thumbnail
+    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$SYSTEM_LOG"
+
+    if [[ $? -eq 0 ]]; then
+        echo "[$current_timestamp] Thumbnail generated: $thumbnail_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Success" >> "$CSV_LOG"
+    else
+        echo "[$current_timestamp] Failed to generate thumbnail: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        echo "$current_timestamp,$video_id,$original_name,$aws_key,$output_file,$thumbnail_file,Failed Thumbnail" >> "$CSV_LOG"
+    fi
 }
 
-# Main processing loop
+# Main loop to process video sources
 while IFS=',' read -r video_id src thumbnail file_id; do
-    [[ "$video_id" == "id" ]] && continue
+    if [[ "$video_id" == "id" ]]; then
+        continue
+    fi
+    timestamp=$(date "+%Y-%m-%d %H:%M:%S")
 
-    # Extract filenames
+    # Extract file names from src and thumbnail
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
     thumbnail_filename=$(basename "$thumbnail" | sed 's/^"//;s/"$//')
 
-    # Lookup originalname and AWS key or fallback to src filename
-    if [[ "$file_id" -ne 0 ]]; then
-        originalname=$(awk -F',' -v id="$file_id" '$1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
-        aws_key=$(awk -F',' -v id="$file_id" '$1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
-    fi
+    # Find the original name and AWS key in File.csv using file_id
+    originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
+    aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
 
     if [[ -z "$originalname" ]]; then
-        log_debug "No valid fileId for Video ID: $video_id. Using src filename."
-        originalname="${src_filename%.*}"
-        aws_key=""
-    fi
-
-    # Locate video file
-    video_file=$(find_file_by_originalname "$originalname")
-    if [[ -z "$video_file" ]]; then
-        log_error "Video file not found: $originalname"
+        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         continue
     fi
 
-    # Get resolution and orientation
+    # Search for the video file in INPUT_DIR
+    video_file=$(find_file_by_originalname "$originalname")
+
+    if [[ -z "$video_file" ]]; then
+        echo "[$timestamp] Video file not found for Original Name: $originalname, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        continue
+    fi
+
+    # Determine video orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
-    [[ -z "$resolution" ]] && log_error "Failed to get resolution for: $video_file" && continue
+    if [[ -z "$resolution" ]]; then
+        echo "[$timestamp] Unable to get resolution for file: $video_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        continue
+    fi
 
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
-    is_portrait="false"
-    [[ $height -gt $width ]] && is_portrait="true"
 
-    # Convert and generate thumbnail
+    is_portrait="false"
+    if (( height > width )); then
+        is_portrait="true"
+    fi
+
+    # Convert video and generate thumbnail using extracted names
     convert_video_file "$video_id" "$video_file" "$is_portrait" "${src_filename%.*}" "${thumbnail_filename%.*}" "$originalname" "$aws_key"
-done < <(tail -n +2 "$VIDEO_SOURCES_CSV")
+done < "$VIDEO_SOURCES_CSV"
 
 log_debug "Processing completed for VIDEO_SOURCES_CSV=$VIDEO_SOURCES_CSV"
