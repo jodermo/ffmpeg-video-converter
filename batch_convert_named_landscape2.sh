@@ -13,11 +13,16 @@ sanitize_filename() {
     echo "${fileName}.${extension}"
 }
 
+
 # Paths
 VIDEO_NAMES_CSV="./existing_video_names/video_sources.csv"
 INPUT_DIR="./input_videos_portrait"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
+
+SKIPPED_LOG="./logs/skipped_files.log"
+COMPLETED_LOG="./logs/completed_files.log"
+THUMBNAIL_LOG="./logs/generated_thumbnails.log"
 
 # Video parameters
 SCALE="1920:1080"
