@@ -48,17 +48,19 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
     if [[ "$ID" == "id" ]]; then continue; fi
 
     MATCHING_LINE=""
-    if [[ "$FILEID" == "0" ]]; then
-        # Check if any "key" from FILE_NAMES_CSV is included in "src"
+    if [[ "$FILEID" != "0" ]]; then
+        # Match file entry using fileId
+        MATCHING_LINE=$(grep -F ",$FILEID," "$FILE_NAMES_CSV" | head -n 1)
+    fi
+
+    if [[ -z "$MATCHING_LINE" ]]; then
+        # If no match by fileId, check if "key" from FILE_NAMES_CSV is included in "src"
         while IFS=',' read -r FILE_ID USER_ID NAME FILENAME ORIGINALNAME MIMETYPE DESTINATION PATH SIZE CREATED THUMBNAIL LOCATION BUCKET KEY TYPE PROGRESSSTATUS VIEWS TOPIXID PORTRAIT; do
             if [[ "$SRC" == *"$KEY"* ]]; then
                 MATCHING_LINE=$(echo "$FILE_ID,$USER_ID,$NAME,$FILENAME,$ORIGINALNAME,$MIMETYPE,$DESTINATION,$PATH,$SIZE,$CREATED,$THUMBNAIL,$LOCATION,$BUCKET,$KEY,$TYPE,$PROGRESSSTATUS,$VIEWS,$TOPIXID,$PORTRAIT")
                 break
             fi
         done < <(tail -n +2 "$FILE_NAMES_CSV")
-    else
-        # Match file entry from FILE_NAMES_CSV using fileId
-        MATCHING_LINE=$(grep -F ",$FILEID," "$FILE_NAMES_CSV" | head -n 1)
     fi
 
     if [[ -z "$MATCHING_LINE" ]]; then
@@ -68,6 +70,7 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
 
     ORIGINALNAME=$(echo "$MATCHING_LINE" | cut -d',' -f5 | tr -d '"' | xargs)
     NORMALIZED_ORIGINALNAME=$(normalize_filename "$ORIGINALNAME")
+    KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
 
     INPUT_FILE="$INPUT_DIR/$ORIGINALNAME"
     if [[ ! -f "$INPUT_FILE" ]]; then
@@ -75,21 +78,15 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
         continue
     fi
 
-    IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
-    KEY=$(echo "$MATCHING_LINE" | cut -d',' -f14 | tr -d '"' | xargs)
-
-    # Remove `.mp4` from the key for output naming
-    KEY_NO_EXT="${KEY%.mp4}"
-    OUTPUT_FILE="$OUTPUT_DIR/${KEY_NO_EXT}.mp4"
-
-    # Determine thumbnail file name
+    # Determine thumbnail name
     THUMBNAIL_NAME=$(basename "$THUMBNAIL")
     if [[ -z "$THUMBNAIL_NAME" || "$THUMBNAIL_NAME" == "NULL" ]]; then
-        THUMBNAIL_NAME="${KEY_NO_EXT}.0000000.jpg"
+        THUMBNAIL_NAME="${KEY}.0000000.jpg"
     fi
     THUMBNAIL_FILE="$THUMBNAIL_DIR/$THUMBNAIL_NAME"
 
     # Set resolution based on orientation
+    IS_PORTRAIT=$(echo "$MATCHING_LINE" | cut -d',' -f20 | tr -d '"' | xargs)
     if [[ "$IS_PORTRAIT" == "True" || "$IS_PORTRAIT" == "true" ]]; then
         WIDTH=$LANDSCAPE_HEIGHT
         HEIGHT=$LANDSCAPE_WIDTH
@@ -97,6 +94,8 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
         WIDTH=$LANDSCAPE_WIDTH
         HEIGHT=$LANDSCAPE_HEIGHT
     fi
+
+    OUTPUT_FILE="$OUTPUT_DIR/${KEY}.mp4"
 
     # Convert video
     ffmpeg -y -i "$INPUT_FILE" \
