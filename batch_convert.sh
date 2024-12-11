@@ -73,9 +73,8 @@ normalize_name() {
     # Step 1: Decode URI-encoded characters
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
 
-    # Step 2: Fix misencoded characters (e.g., UTF-8 issues from CSV)
+    # Step 2: Fix common UTF-8 misencoded characters
     filename=$(echo "$filename" |
-        # Replace common UTF-8 misencoded characters
         sed 's/Ã¤/ä/g; s/Ã¶/ö/g; s/Ã¼/ü/g; s/Ã„/Ä/g; s/Ã–/Ö/g; s/Ãœ/Ü/g; s/ÃŸ/ß/g' |  # German Umlauts
         sed 's/â€œ/"/g; s/â€/"/g; s/â€˜/'"'"'/g; s/â€™/'"'"'/g; s/â€“/-/g; s/â€”/-/g' |  # Fancy quotes and dashes
         sed 's/â€¦/.../g; s/â€‹//g' |  # Ellipsis and zero-width space
@@ -86,17 +85,16 @@ normalize_name() {
         sed 's/Ã§/ç/g; s/Ã±/ñ/g; s/Ã½/ý/g; s/Ã¿/ÿ/g'   # Special characters
     )
 
+    # Step 3: Normalize Unicode to NFC (Canonical Composition)
+    filename=$(printf "%s" "$filename" | iconv -f utf-8-mac -t utf-8 -c)
 
-    # Step 3: Replace German Umlauts and other special characters
+    # Step 4: Replace German Umlauts and other special characters
     filename=$(echo "$filename" |
         sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |
         sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' |
         sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |
         sed 's/œ/oe/g; s/æ/ae/g'
     )
-
-    # Step 4: Normalize Unicode to NFC (Canonical Composition)
-    filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c)
 
     # Step 5: Replace unsafe characters and spaces
     filename=$(echo "$filename" |
@@ -117,8 +115,9 @@ find_file_by_originalname() {
         local filename=$(basename "$file")
         local normalized_file=$(normalize_name "$filename")
 
-        # Debug: Log comparisons
-        echo "[DEBUG] Comparing: '$filename' -> '$normalized_file' with '$originalname' -> '$normalized_original'" >> "$SYSTEM_LOG"
+        # Debug logs for comparison
+        echo "[DEBUG] Comparing: Original='$originalname', Normalized Original='$normalized_original'" >> "$SYSTEM_LOG"
+        echo "[DEBUG] File='$filename', Normalized File='$normalized_file'" >> "$SYSTEM_LOG"
 
         # Compare normalized names
         if [[ "$normalized_original" == "$normalized_file" ]]; then
@@ -127,6 +126,7 @@ find_file_by_originalname() {
         fi
     done
 
+    # If no match is found, return empty
     echo ""
 }
 
