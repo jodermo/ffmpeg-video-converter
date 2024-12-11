@@ -63,14 +63,11 @@ fi
 
 # Function to find a file by name
 find_file_by_originalname() {
-    local originalname=$(echo "$1" | xargs) # Trim whitespace
+    local originalname=$(echo "$1" | sed 's/^"//;s/"$//;s/\r//') # Remove surrounding quotes and carriage returns
     log_debug "Searching for file: $originalname in $INPUT_DIR"
-    local matched_file=$(find "$INPUT_DIR" -type f -iname "$originalname" -print -quit)
-    if [[ -z "$matched_file" ]]; then
-        log_error "File not found for: $originalname"
-    fi
-    echo "$matched_file"
+    find "$INPUT_DIR" -type f -iname "$originalname" -print -quit
 }
+
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
