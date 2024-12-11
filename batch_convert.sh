@@ -56,7 +56,7 @@ find_file_by_originalname() {
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
-
+    local current_timestamp=$(date "+%Y-%m-%d %H:%M:%S")
     
     local video_id="$1"
     local input_file="$2"
@@ -95,10 +95,10 @@ convert_video_file() {
     echo "" # New line after progress bar
 
     if [[ $? -eq 0 ]]; then
-        echo "Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "[$current_timestamp] Video converted successfully: $output_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
     else
-        echo "Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "Conversion failed for $input_file, Video ID: $video_id"
+        echo "[$current_timestamp] Failed to convert video: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        log_debug "[$current_timestamp] Conversion failed for $input_file, Video ID: $video_id"
         return 1
     fi
 
@@ -106,10 +106,10 @@ convert_video_file() {
     ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" 2>>"$SYSTEM_LOG"
 
     if [[ $? -eq 0 ]]; then
-        echo "Thumbnail generated: $thumbnail_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
+        echo "[$current_timestamp] Thumbnail generated: $thumbnail_file, Video ID: $video_id" | tee -a "$COMPLETED_LOG"
     else
-        echo "Failed to generate thumbnail: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "Thumbnail generation failed for $input_file, Video ID: $video_id"
+        echo "[$current_timestamp] Failed to generate thumbnail: $input_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        log_debug "[$current_timestamp] Thumbnail generation failed for $input_file, Video ID: $video_id"
     fi
 }
 
@@ -118,6 +118,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     if [[ "$video_id" == "id" ]]; then
         continue
     fi
+    timestamp=$(date "+%Y-%m-%d %H:%M:%S")
 
     # Extract file names from src and thumbnail
     src_filename=$(basename "$src" | sed 's/^"//;s/"$//')
@@ -127,7 +128,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     originalname=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $5}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
     
     if [[ -z "$originalname" ]]; then
-        echo "Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         continue
     fi
 
@@ -135,15 +136,15 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     video_file=$(find_file_by_originalname "$originalname")
 
     if [[ -z "$video_file" ]]; then
-        echo "Video file not found for Original Name: $originalname, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        echo "[$timestamp] Video file not found for Original Name: $originalname, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
         continue
     fi
 
     # Determine video orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file" 2>>"$SYSTEM_LOG")
     if [[ -z "$resolution" ]]; then
-        echo "Unable to get resolution for file: $video_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-        log_debug "Failed to get resolution for $video_file, Video ID: $video_id"
+        echo "[$timestamp] Unable to get resolution for file: $video_file, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
+        log_debug "[$timestamp] Failed to get resolution for $video_file, Video ID: $video_id"
         continue
     fi
 
