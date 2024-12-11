@@ -150,18 +150,15 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     if [[ -z "$originalname" ]]; then
         timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
-
         # Extract original name from the src URL
         originalname=$(basename "$src")  # Extract the last component of the URL
         originalname="${originalname%.*}"  # Remove the file extension if it exists
-        
         # Append .mp4 if not already present
         if [[ "$originalname" != *.mp4 ]]; then
             originalname="${originalname}.mp4"
         fi
-
-        log_debug "Extracted and adjusted original name from src: $originalname"
+        echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname" | tee -a "$SKIPPED_LOG"
+        log_debug "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id, Name: $originalname""
     fi
 
 
