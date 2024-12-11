@@ -55,8 +55,28 @@ log_debug "CSV files validated: FILE_NAMES_CSV=$FILE_NAMES_CSV, VIDEO_SOURCES_CS
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
-    echo "$filename" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]' | tr ' ' '_'
+
+    # Normalize common Umlauts and special characters
+    local normalized=$(echo "$filename" |
+        sed 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g; s/Ä/Ae/g; s/Ö/Oe/g; s/Ü/Ue/g' |  # Replace German Umlauts
+        sed 's/[áàâãåā]/a/g; s/[éèêëēėę]/e/g; s/[íìîïīį]/i/g; s/[óòôõøō]/o/g; s/[úùûüū]/u/g' | # Normalize accented characters
+        sed 's/ç/c/g; s/ñ/n/g; s/ý/y/g; s/þ/th/g; s/đ/d/g' |  # Additional diacritics
+        sed 's/œ/oe/g; s/æ/ae/g' |  # Ligatures
+        sed 's/[’‘‹›‚]/_/g; s/[“”«»„]/_/g; s/[©®™]/_/g' | # Remove quotes and symbols
+        tr -d '\n\r' |  # Remove newlines and carriage returns
+        sed 's/[[:space:]]\+/_/g' |  # Replace spaces with underscores
+        sed 's/[^a-zA-Z0-9._-]//g'  # Remove remaining invalid characters
+    )
+
+    # Handle reserved names on Windows
+    normalized=$(echo "$normalized" | sed -E 's/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/_\1_/')
+
+    # Ensure compatibility with Mac/Linux/Unicode
+    normalized=$(echo "$normalized" | iconv -f utf-8 -t ascii//TRANSLIT 2>/dev/null || echo "$normalized")
+
+    echo "$normalized"
 }
+
 
 # Function to find a file in INPUT_DIR based on the normalized original name
 find_file_by_originalname() {
