@@ -31,6 +31,7 @@ if [[ ! -f "$FILE_NAMES_CSV" || ! -f "$VIDEO_SOURCES_CSV" ]]; then
     echo "Error: CSV files are missing." | tee -a "$SKIPPED_LOG"
     exit 1
 fi
+
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local input_file="$1"
@@ -53,7 +54,6 @@ convert_video_file() {
         -of default=noprint_wrappers=1:nokey=1 "$input_file")
     duration=${duration%.*} # Round to nearest second
 
-    # Check if duration is valid
     if [[ -z "$duration" || "$duration" -eq 0 ]]; then
         echo "Failed to get duration for $input_file. Skipping..." | tee -a "$SKIPPED_LOG"
         return 1
@@ -72,7 +72,7 @@ convert_video_file() {
                 printf "\rConverting: [%-50s] %d%%" "$(printf "%0.s#" $(seq 1 $((progress / 2))))" "$progress"
             fi
         done
-    echo "" # New line after progress bar
+    echo ""
 
     if [[ $? -eq 0 ]]; then
         echo "Video converted successfully: $output_file" | tee -a "$COMPLETED_LOG"
@@ -104,7 +104,8 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
 
-    video_file=$(find "$INPUT_DIR" -name "*$file_id*" -type f | head -n 1)
+    # Locate video file
+    video_file=$(find "$INPUT_DIR" -type f -name "*${file_id}*" -o -name "*${key}*" | head -n 1)
     if [[ -n "$video_file" ]]; then
         # Determine video orientation
         resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$video_file")
@@ -123,7 +124,6 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
         convert_video_file "$video_file" "$output_file" "$thumbnail_file" "$is_portrait"
     else
-        echo "Video file not found for File ID: $file_id" | tee -a "$SKIPPED_LOG"
+        echo "Video file not found for File ID: $file_id or Key: $key" | tee -a "$SKIPPED_LOG"
     fi
 done < <(cat "$VIDEO_SOURCES_CSV")
-
