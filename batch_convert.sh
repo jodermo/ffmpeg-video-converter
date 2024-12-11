@@ -78,6 +78,7 @@ convert_video_file() {
         -vf "scale=$scale:force_original_aspect_ratio=decrease,pad=$scale:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
+        -progress pipe:1 2>&1 | tee -a "$COMPLETED_LOG"
         2>> "$COMPLETED_LOG"
 
     if [[ $? -eq 0 ]]; then
