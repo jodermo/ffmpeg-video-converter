@@ -39,6 +39,12 @@ convert_video_file() {
     local thumbnail_file="$3"
     local is_portrait="$4"
 
+    # Check if output already exists
+    if [[ -f "$output_file" ]]; then
+        echo "Video already converted: $output_file" | tee -a "$COMPLETED_LOG"
+        return 0
+    fi
+
     mkdir -p "$OUTPUT_DIR" "$THUMBNAIL_DIR"
 
     # Determine scale based on orientation
@@ -100,7 +106,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
 
     file_id=$(echo "$file_id" | sed 's/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
     key=$(basename "$(dirname "$src")")
-    thumbnail_name=$(basename "$thumbnail")
+    thumbnail_name=$(basename "$thumbnail" 2>/dev/null || echo "${file_id}_fallback.jpg")
 
     echo "Processing Video ID: $video_id, File ID: $file_id" | tee -a "$COMPLETED_LOG"
 
