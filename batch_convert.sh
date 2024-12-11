@@ -48,7 +48,7 @@ while IFS=',' read -r ID SRC THUMBNAIL FILEID; do
     if [[ "$ID" == "id" ]]; then continue; fi
 
     MATCHING_LINE=""
-    if [[ "$FILEID" -eq 0 ]]; then
+    if [[ "$FILEID" == "0" ]]; then
         # Check if any "key" from FILE_NAMES_CSV is included in "src"
         while IFS=',' read -r FILE_ID USER_ID NAME FILENAME ORIGINALNAME MIMETYPE DESTINATION PATH SIZE CREATED THUMBNAIL LOCATION BUCKET KEY TYPE PROGRESSSTATUS VIEWS TOPIXID PORTRAIT; do
             if [[ "$SRC" == *"$KEY"* ]]; then
