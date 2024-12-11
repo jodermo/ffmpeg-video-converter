@@ -66,46 +66,65 @@ is_already_processed() {
 
 
 
+# Debug log file
+DEBUG_LOG="./debug.log"
+
+# Debug log function
+log_debug() {
+    echo "[DEBUG] $(date '+%Y-%m-%d %H:%M:%S') $1" >> "$DEBUG_LOG"
+}
+
 # Normalize file names (e.g., trim spaces, convert to lowercase)
 normalize_name() {
     local filename="$1"
-    
+    log_debug "Original filename: $filename"
+
     # Decode URI-encoded characters (if any)
     filename=$(echo -e "$(echo "$filename" | sed 's/%/\\x/g')")
+    log_debug "Decoded filename: $filename"
 
     # Normalize Unicode to NFC (combine decomposed characters into single codepoints)
     filename=$(printf "%s" "$filename" | iconv -f utf-8 -t utf-8 -c | python3 -c "import unicodedata, sys; print(unicodedata.normalize('NFC', sys.stdin.read()))")
+    log_debug "Unicode normalized filename: $filename"
 
     # Remove all non-alphabetic characters
     filename=$(echo "$filename" | sed 's/[^a-zA-Z]//g')
+    log_debug "Alphabetic-only filename: $filename"
 
     echo "$filename"
 }
-
 
 # Function to find a file in INPUT_DIR based on the normalized original name
 find_file_by_originalname() {
     local originalname="$1"
     local normalized_original=$(normalize_name "$originalname")
+    log_debug "Normalized original name: $normalized_original"
 
     # Loop through all files in INPUT_DIR
     find "$INPUT_DIR" -type f | while read -r file; do
         # Ignore README.md
-        [[ "$(basename "$file")" == "README.md" ]] && continue
+        if [[ "$(basename "$file")" == "README.md" ]]; then
+            log_debug "Skipping file: $file (README.md)"
+            continue
+        fi
 
         # Normalize the current file's name
         local normalized_file=$(normalize_name "$(basename "$file")")
+        log_debug "Normalized filename: $normalized_file (Original: $(basename "$file"))"
 
         # Compare normalized names
         if [[ "$normalized_original" == "$normalized_file" ]]; then
+            log_debug "Match found: $file"
             echo "$file"
             return
         fi
     done
 
     # If no match is found, return empty
+    log_debug "No match found for: $originalname"
     echo ""
 }
+
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
