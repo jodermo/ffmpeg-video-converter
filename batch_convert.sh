@@ -142,7 +142,7 @@ while IFS=',' read -r video_id src thumbnail file_id; do
     aws_key=$(awk -F',' -v id="$file_id" 'BEGIN {OFS=","} $1 == id {print $14}' "$FILE_NAMES_CSV" | sed 's/^"//;s/"$//')
 
     if [[ -z "$originalname" ]]; then
-        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
         echo "[$timestamp] Original name not found for File ID: $file_id, Video ID: $video_id" | tee -a "$SKIPPED_LOG"
 
         # Extract original name from the src URL
