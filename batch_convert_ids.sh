@@ -54,7 +54,7 @@ is_already_processed() {
 # Function to find the file in INPUT_DIR
 find_video_file() {
     local src_filename="$1"
-    local found_file=$(find "$INPUT_DIR" -type f -name "$(basename "$src_filename")" -print -quit)
+    find "$INPUT_DIR" -type f -name "$(basename "$src_filename")" -print -quit
     echo "$found_file"
 }
 
@@ -115,36 +115,26 @@ convert_video_file() {
     fi
 }
 
+
 # Main loop to process video sources
 tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
-    # Skip header row if any
-    if [[ -z "$video_id" || -z "$src" ]]; then
-        log_debug "Skipping empty row or invalid entry: $video_id, $src"
-        continue
-    fi
-
     log_debug "Processing video ID: $video_id, Source: $src"
 
-    # Extract filename
     src_filename=$(basename "$src")
     input_file=$(find_video_file "$src_filename")
     output_file="$OUTPUT_DIR/$src_filename"
     thumbnail_file="$THUMBNAIL_DIR/${src_filename%.*}.jpg"
 
-    # Check if file exists
     if [[ -z "$input_file" ]]; then
         echo "Video file not found: $src_filename" | tee -a "$SKIPPED_LOG"
-        echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,,Skipped" >> "$CSV_LOG"
         continue
     fi
 
-    # Check if file is already processed
     if is_already_processed "$input_file"; then
         echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
         continue
     fi
 
-    # Detect orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$input_file")
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
@@ -155,6 +145,5 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
         is_portrait="false"
     fi
 
-    # Convert video and generate thumbnail
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
 done
