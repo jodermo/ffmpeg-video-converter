@@ -48,12 +48,28 @@ normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
 }
 
+# Function to check if a video has already been converted
+is_video_already_converted() {
+    local output_file="$1"
+    if [[ -f "$output_file" ]]; then
+        return 0 # File exists
+    fi
+    return 1 # File does not exist
+}
+
 # Function to convert video and generate thumbnail
 convert_video_file() {
     local video_id="$1"
     local input_file="$2"
     local output_file="$3"
     local thumbnail_file="$4"
+
+    # Check if the output video file already exists
+    if is_video_already_converted "$output_file"; then
+        log_debug "Video already converted: $output_file. Skipping conversion."
+        echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
+        return 0
+    fi
 
     # Get video duration
     local duration
@@ -86,6 +102,7 @@ convert_video_file() {
     # Check FFmpeg exit status
     if [[ $? -eq 0 ]]; then
         log_debug "Video converted successfully: $input_file -> $output_file"
+        echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
     else
         log_debug "Video conversion failed for: $input_file"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Conversion Failed" >> "$CSV_LOG"
@@ -106,6 +123,7 @@ convert_video_file() {
         echo "Thumbnail generation failed for $input_file" >> "$SKIPPED_LOG"
     fi
 }
+
 
 
 # Process each file in INPUT_DIR
