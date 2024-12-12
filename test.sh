@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Debug mode (set to 1 to enable debug logs, 0 to disable)
+# Debug mode
 DEBUG=1
 
 # Debug log function
@@ -26,7 +26,7 @@ log_debug "Directories and log files ensured: LOG_DIR=$LOG_DIR"
 
 # Function to normalize filenames
 normalize_filename() {
-    echo "$1" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]'
+    echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed 's/[^\w\.-]//g'
 }
 
 # Process each file in INPUT_DIR
