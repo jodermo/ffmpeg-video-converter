@@ -55,13 +55,35 @@ convert_video_file() {
     local output_file="$3"
     local thumbnail_file="$4"
 
-    # Convert video with FFmpeg
+    # Get video duration
+    local duration
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$input_file")
+    duration=${duration%.*} # Convert to integer seconds
+
+    if [[ -z "$duration" || "$duration" -le 0 ]]; then
+        log_debug "Could not determine duration for $input_file. Skipping."
+        echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Conversion Failed (No duration)" >> "$CSV_LOG"
+        return 1
+    fi
+
+    # Convert video with FFmpeg and display progress
+    echo "Converting video: $input_file"
     ffmpeg -y -i "$input_file" \
         -vf "scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2" \
         -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-        >> "$SYSTEM_LOG" 2>&1
+        -progress pipe:1 2>&1 | while IFS="=" read -r key value; do
+            if [[ "$key" == "out_time_us" ]]; then
+                local current_time=$((value / 1000000)) # Convert microseconds to seconds
+                local progress=$((current_time * 100 / duration))
+                printf "\rProcessing ID: %s, Video: %s [%d%%]" "$video_id" "$(basename "$input_file")" "$progress"
+            fi
+        done
 
+    echo "" # New line after progress bar
+
+    # Check FFmpeg exit status
     if [[ $? -eq 0 ]]; then
         log_debug "Video converted successfully: $input_file -> $output_file"
     else
@@ -84,6 +106,7 @@ convert_video_file() {
         echo "Thumbnail generation failed for $input_file" >> "$SKIPPED_LOG"
     fi
 }
+
 
 # Process each file in INPUT_DIR
 for file_path in "$INPUT_DIR"/*; do
