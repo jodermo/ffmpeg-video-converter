@@ -3,13 +3,6 @@
 # Debug mode
 DEBUG=1
 
-# Debug log function
-log_debug() {
-    if [[ "$DEBUG" -eq 1 ]]; then
-        echo "[DEBUG] $1"
-    fi
-}
-
 # File Paths
 VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
 INPUT_DIR="./input_videos"
@@ -20,6 +13,7 @@ LOG_DIR="./logs"
 SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 SYSTEM_LOG="$LOG_DIR/system.log"
 CSV_LOG="$LOG_DIR/conversion_log.csv"
+PROCESSED_LOG="$LOG_DIR/processed_videos.csv"
 
 # Video parameters
 WIDTH="1280"
@@ -32,58 +26,58 @@ AUDIO_BITRATE="128k"
 THUMBNAIL_TIME="00:00:02"
 THUMBNAIL_QUALITY="2"
 
-# Ensure directories and log files exist
-mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
-touch "$SKIPPED_LOG" "$SYSTEM_LOG" "$CSV_LOG"
+# Headers
+CSV_HEADER="Timestamp,Video ID,Source,Thumbnail,Status"
+PROCESSED_HEADER="Video ID,Output Source,Thumbnail Path"
 
-log_debug "Directories and log files ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
+# Debug log function
+log_debug() {
+    [[ "$DEBUG" -eq 1 ]] && echo "[DEBUG] $1"
+}
 
-# Initialize CSV log if empty
-if [[ ! -s "$CSV_LOG" ]]; then
-    echo "Timestamp,Video ID,Source,Thumbnail,Status" > "$CSV_LOG"
-fi
+# Ensure directories and logs exist
+setup_environment() {
+    mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+    touch "$SKIPPED_LOG" "$SYSTEM_LOG"
+    [[ ! -s "$CSV_LOG" ]] && echo "$CSV_HEADER" > "$CSV_LOG"
+    [[ ! -s "$PROCESSED_LOG" ]] && echo "$PROCESSED_HEADER" > "$PROCESSED_LOG"
+    log_debug "Environment setup complete: Directories and logs ensured."
+}
 
-# Function to normalize filenames
+# Normalize filenames
 normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
 }
 
-# Function to check if a video has already been converted
+# Check if video is already converted
 is_video_already_converted() {
-    local output_file="$1"
-    if [[ -f "$output_file" ]]; then
-        return 0 # File exists
-    fi
-    return 1 # File does not exist
+    [[ -f "$1" ]]
 }
 
-# Function to convert video and generate thumbnail
-convert_video_file() {
-    local video_id="$1"
-    local input_file="$2"
-    local output_file="$3"
-    local thumbnail_file="$4"
+# Get video duration in seconds
+get_video_duration() {
+    ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 "$1" | awk '{printf "%.0f\n", $1}'
+}
 
-    # Check if the output video file already exists
+# Convert video and generate thumbnail
+convert_video_file() {
+    local video_id="$1" input_file="$2" output_file="$3" thumbnail_file="$4"
+
     if is_video_already_converted "$output_file"; then
         log_debug "Video already converted: $output_file. Skipping conversion."
         echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
         return 0
     fi
 
-    # Get video duration
     local duration
-    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-        -of default=noprint_wrappers=1:nokey=1 "$input_file")
-    duration=${duration%.*} # Convert to integer seconds
-
+    duration=$(get_video_duration "$input_file")
     if [[ -z "$duration" || "$duration" -le 0 ]]; then
-        log_debug "Could not determine duration for $input_file. Skipping."
-        echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Conversion Failed (No duration)" >> "$CSV_LOG"
+        log_debug "Invalid duration for $input_file. Skipping."
+        echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Conversion Failed (Invalid duration)" >> "$CSV_LOG"
         return 1
     fi
 
-    # Convert video with FFmpeg and display progress
     echo "Converting video: $input_file"
     ffmpeg -y -i "$input_file" \
         -vf "scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2" \
@@ -91,7 +85,7 @@ convert_video_file() {
         -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
         -progress pipe:1 2>&1 | while IFS="=" read -r key value; do
             if [[ "$key" == "out_time_us" ]]; then
-                local current_time=$((value / 1000000)) # Convert microseconds to seconds
+                local current_time=$((value / 1000000))
                 local progress=$((current_time * 100 / duration))
                 printf "\rProcessing ID: %s, Video: %s [%d%%]" "$video_id" "$(basename "$input_file")" "$progress"
             fi
@@ -99,49 +93,45 @@ convert_video_file() {
 
     echo "" # New line after progress bar
 
-    # Check FFmpeg exit status
     if [[ $? -eq 0 ]]; then
-        log_debug "Video converted successfully: $input_file -> $output_file"
+        log_debug "Video conversion successful: $output_file"
         echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
     else
-        log_debug "Video conversion failed for: $input_file"
+        log_debug "Video conversion failed: $input_file"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Conversion Failed" >> "$CSV_LOG"
-        echo "Conversion failed for $input_file" >> "$SKIPPED_LOG"
         return 1
     fi
 
-    # Generate thumbnail
-    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" \
-        >> "$SYSTEM_LOG" 2>&1
-
+    ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" >> "$SYSTEM_LOG" 2>&1
     if [[ $? -eq 0 ]]; then
-        log_debug "Thumbnail generated successfully: $thumbnail_file"
+        log_debug "Thumbnail generation successful: $thumbnail_file"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,$thumbnail_file,Success" >> "$CSV_LOG"
     else
-        log_debug "Thumbnail generation failed for: $input_file"
+        log_debug "Thumbnail generation failed: $input_file"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,,Thumbnail Failed" >> "$CSV_LOG"
-        echo "Thumbnail generation failed for $input_file" >> "$SKIPPED_LOG"
     fi
 }
 
+# Process each video
+process_videos() {
+    for file_path in "$INPUT_DIR"/*; do
+        [[ -f "$file_path" ]] || continue
 
-
-# Process each file in INPUT_DIR
-for file_path in "$INPUT_DIR"/*; do
-    if [[ -f "$file_path" ]]; then
+        local file_name normalized_file_name
         file_name=$(basename "$file_path")
         normalized_file_name=$(normalize_filename "$file_name")
 
         log_debug "Processing file: $file_name (Normalized: $normalized_file_name)"
 
-        # Search for normalized name in CSV
-        found_in_csv=false
+        local found_in_csv=false
         while IFS=',' read -r video_id src; do
+            local csv_normalized_name
             csv_normalized_name=$(normalize_filename "$(basename "$src")")
             if [[ "$normalized_file_name" == "$csv_normalized_name" ]]; then
                 found_in_csv=true
                 log_debug "Match found in CSV: $csv_normalized_name for Video ID: $video_id"
 
+                local output_file thumbnail_file
                 output_file="$OUTPUT_DIR/${file_name%.*}.mp4"
                 thumbnail_file="$THUMBNAIL_DIR/${file_name%.*}.jpg"
 
@@ -154,5 +144,9 @@ for file_path in "$INPUT_DIR"/*; do
             log_debug "No match found in CSV for file: $file_name"
             echo "No match for $file_name" >> "$SKIPPED_LOG"
         fi
-    fi
-done
+    done
+}
+
+# Main script
+setup_environment
+process_videos
