@@ -115,7 +115,6 @@ convert_video_file() {
     fi
 }
 
-
 # Main loop to process video sources
 while IFS=',' read -r video_id src; do
     # Skip header row
@@ -138,6 +137,11 @@ while IFS=',' read -r video_id src; do
         continue
     fi
 
+    # Check if file is already processed
+    if is_already_processed "$input_file"; then
+        echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
+        continue
+    fi
 
     # Detect orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$input_file")
@@ -152,4 +156,4 @@ while IFS=',' read -r video_id src; do
 
     # Convert video and generate thumbnail
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
-done < "$VIDEO_IDS_CSV"
+done < <(tail -n +2 "$VIDEO_IDS_CSV") # Skip the header row explicitly
