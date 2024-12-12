@@ -11,7 +11,7 @@ log_debug() {
 }
 
 # File Paths
-VIDEO_IDS_CSV="./csv_data/video_ids.csv"
+VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
