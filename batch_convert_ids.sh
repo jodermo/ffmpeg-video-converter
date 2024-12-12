@@ -62,7 +62,13 @@ normalize_filename() {
 find_video_file() {
     local normalized_name
     normalized_name=$(normalize_filename "$(basename "$1")")
-    find "$INPUT_DIR" -type f -iname "$normalized_name" -print -quit
+    local file=$(find "$INPUT_DIR" -type f -iname "$normalized_name" -print -quit)
+    if [[ -z "$file" ]]; then
+        log_debug "File not found: $normalized_name"
+    else
+        log_debug "File found: $file"
+    fi
+    echo "$file"
 }
 
 # Function to convert video and generate thumbnail
