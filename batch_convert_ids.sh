@@ -115,6 +115,14 @@ convert_video_file() {
     fi
 }
 
+log_processed_file() {
+    local video_id="$1"
+    local input_file="$2"
+    local thumbnail_file="$3"
+    local status="$4"
+
+    echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,$thumbnail_file,$status" >> "$CSV_LOG"
+}
 
 # Main loop to process video sources
 tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
@@ -125,16 +133,22 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
     output_file="$OUTPUT_DIR/$src_filename"
     thumbnail_file="$THUMBNAIL_DIR/${src_filename%.*}.jpg"
 
+    # Check if file is already processed
+    if is_already_processed "$src_filename"; then
+        # Use file from parent directory for CSV log
+        echo "Already processed: $src_filename" | tee -a "$SYSTEM_LOG"
+        log_processed_file "$video_id" "$input_file" "$thumbnail_file" "Already Processed"
+        continue
+    fi
+
+    # Check if file exists
     if [[ -z "$input_file" ]]; then
         echo "Video file not found: $src_filename" | tee -a "$SKIPPED_LOG"
+        log_processed_file "$video_id" "$src" "" "Skipped"
         continue
     fi
 
-    if is_already_processed "$input_file"; then
-        echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
-        continue
-    fi
-
+    # Detect orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$input_file")
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
@@ -145,5 +159,6 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
         is_portrait="false"
     fi
 
+    # Convert video and generate thumbnail
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
 done
