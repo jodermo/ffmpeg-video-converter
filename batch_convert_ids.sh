@@ -11,7 +11,7 @@ log_debug() {
 }
 
 # File Paths
-VIDEO_IDS_CSV="./csv_data/video_ids.csv" # CSV file with id, src
+VIDEO_IDS_CSV="./csv_data/video_ids.csv"
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
@@ -20,12 +20,13 @@ LOG_DIR="./logs"
 SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 COMPLETED_LOG="$LOG_DIR/completed_files.log"
 SYSTEM_LOG="$LOG_DIR/system.log"
-CSV_LOG="$LOG_DIR/conversion_log.csv" # id, src, thumbnail, status
+CSV_LOG="$LOG_DIR/conversion_log.csv"
 
-# Ensure directories exist
+# Ensure directories and log files exist
 mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
+touch "$COMPLETED_LOG" "$SKIPPED_LOG" "$SYSTEM_LOG"
 
-log_debug "Directories ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
+log_debug "Directories and log files ensured: LOG_DIR=$LOG_DIR, OUTPUT_DIR=$OUTPUT_DIR, THUMBNAIL_DIR=$THUMBNAIL_DIR"
 
 # Video parameters
 WIDTH="1280"
@@ -44,10 +45,17 @@ echo "Timestamp,Video ID,Source,Thumbnail,Status" > "$CSV_LOG"
 # Function to check if a file has already been processed
 is_already_processed() {
     local input_file="$1"
-    if grep -qF "$input_file" "$COMPLETED_LOG"; then
+    if grep -qF "$(basename "$input_file")" "$COMPLETED_LOG"; then
         return 0
     fi
     return 1
+}
+
+# Function to find the file in INPUT_DIR
+find_video_file() {
+    local src_filename="$1"
+    local found_file=$(find "$INPUT_DIR" -type f -name "$(basename "$src_filename")" -print -quit)
+    echo "$found_file"
 }
 
 # Function to convert video and generate thumbnail
@@ -73,7 +81,7 @@ convert_video_file() {
 
     if [[ $? -eq 0 ]]; then
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,$thumbnail_file,Success" >> "$CSV_LOG"
-        echo "$input_file" >> "$COMPLETED_LOG"
+        echo "$(basename "$input_file")" >> "$COMPLETED_LOG"
     else
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$input_file,$thumbnail_file,Failed" >> "$CSV_LOG"
         echo "Failed to convert video: $input_file" | tee -a "$SKIPPED_LOG"
@@ -93,6 +101,7 @@ convert_video_file() {
 
 # Main loop to process video sources
 while IFS=',' read -r video_id src; do
+    # Skip header row
     if [[ "$video_id" == "id" ]]; then
         continue
     fi
@@ -100,13 +109,14 @@ while IFS=',' read -r video_id src; do
     log_debug "Processing video ID: $video_id, Source: $src"
 
     # Extract filename
-    input_file="$INPUT_DIR/$(basename "$src")"
-    output_file="$OUTPUT_DIR/$(basename "$src")"
-    thumbnail_file="$THUMBNAIL_DIR/$(basename "${src%.*}").jpg"
+    src_filename=$(basename "$src")
+    input_file=$(find_video_file "$src_filename")
+    output_file="$OUTPUT_DIR/$src_filename"
+    thumbnail_file="$THUMBNAIL_DIR/${src_filename%.*}.jpg"
 
     # Check if file exists
-    if [[ ! -f "$input_file" ]]; then
-        echo "Video file not found: $input_file" | tee -a "$SKIPPED_LOG"
+    if [[ -z "$input_file" ]]; then
+        echo "Video file not found: $src_filename" | tee -a "$SKIPPED_LOG"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,,Skipped" >> "$CSV_LOG"
         continue
     fi
@@ -114,7 +124,7 @@ while IFS=',' read -r video_id src; do
     # Check if file is already processed
     if is_already_processed "$input_file"; then
         echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
-        # continue
+        continue
     fi
 
     # Detect orientation
