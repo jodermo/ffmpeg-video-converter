@@ -129,6 +129,11 @@ convert_video_file() {
     fi
 }
 
+
+for file in input_videos/*; do
+    echo "$(basename "$file") -> $(basename "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')"
+done
+
 # Main loop to process video sources
 tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
     log_debug "Processing video ID: $video_id, Source: $src"
@@ -170,6 +175,3 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
 done
 
 
-for file in input_videos/*; do
-    echo "$(basename "$file") -> $(basename "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')"
-done
