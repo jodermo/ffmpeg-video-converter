@@ -116,9 +116,10 @@ convert_video_file() {
 }
 
 # Main loop to process video sources
-while IFS=',' read -r video_id src; do
-    # Skip header row
-    if [[ "$video_id" == "id" ]]; then
+tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
+    # Skip header row if any
+    if [[ -z "$video_id" || -z "$src" ]]; then
+        log_debug "Skipping empty row or invalid entry: $video_id, $src"
         continue
     fi
 
@@ -156,4 +157,4 @@ while IFS=',' read -r video_id src; do
 
     # Convert video and generate thumbnail
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
-done < <(tail -n +2 "$VIDEO_IDS_CSV") # Skip the header row explicitly
+done
