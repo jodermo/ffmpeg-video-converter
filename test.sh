@@ -29,10 +29,13 @@ for file in input_videos/*; do
     echo "[DEBUG] Normalized name: $normalized_name" >> "$LOG_FILE"
 
     # Überprüfen, ob der normalisierte Name in der CSV-Datei existiert
-    if ! grep -qi "$normalized_name" <(cut -d',' -f2 "$VIDEO_IDS_CSV" | tr -d '"' | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]'); then
-        echo "[WARNING] No match for: $file" >> "$LOG_FILE"
-    else
+    match=$(grep -i "$normalized_name" "$VIDEO_IDS_CSV" | tr -d '"' | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')
+    
+    if [[ -n "$match" ]]; then
         echo "[INFO] Match found for: $file" >> "$LOG_FILE"
+        echo "[DEBUG] Matching CSV row: $match" >> "$LOG_FILE"
+    else
+        echo "[WARNING] No match for: $file" >> "$LOG_FILE"
     fi
 done
 
