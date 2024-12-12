@@ -123,8 +123,8 @@ while IFS=',' read -r video_id src; do
 
     # Check if file is already processed
     if is_already_processed "$input_file"; then
-        echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
-        continue
+        # echo "Skipping already processed file: $input_file" | tee -a "$SYSTEM_LOG"
+        # continue
     fi
 
     # Detect orientation
