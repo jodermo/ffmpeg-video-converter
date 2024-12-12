@@ -168,3 +168,8 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
 
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
 done
+
+
+for file in input_videos/*; do
+    echo "$(basename "$file") -> $(basename "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')"
+done
