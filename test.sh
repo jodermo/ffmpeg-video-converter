@@ -1,45 +1,56 @@
 #!/bin/bash
 
-VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
-LOG_FILE="./debug_log.txt"
+# Debug mode (set to 1 to enable debug logs, 0 to disable)
+DEBUG=1
 
-# Prüfen, ob die CSV-Datei existiert
-if [[ ! -f "$VIDEO_IDS_CSV" ]]; then
-    echo "[ERROR] CSV file not found at $VIDEO_IDS_CSV" | tee -a "$LOG_FILE"
-    exit 1
-fi
-
-# Leere die Log-Datei
-> "$LOG_FILE"
-
-# Durchlaufe alle Dateien im Ordner input_videos
-for file in input_videos/*; do
-    # Überspringe die readme.md-Datei
-    if [[ "$file" == *"readme.md"* ]]; then
-        continue
+# Debug log function
+log_debug() {
+    if [[ "$DEBUG" -eq 1 ]]; then
+        echo "[DEBUG] $1"
     fi
+}
 
-    # Ursprünglichen Dateinamen protokollieren
-    echo "[INFO] Processing file: $file" >> "$LOG_FILE"
+# File Paths
+VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
+INPUT_DIR="./input_videos"
+LOG_DIR="./logs"
 
-    # Normalisiere den Dateinamen (ersetze Sonderzeichen, Leerzeichen, etc.)
-    normalized_name=$(basename "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g; s/[()]/_/g' | tr '[:upper:]' '[:lower:]')
-    
-    # Protokolliere den normalisierten Namen
-    echo "[DEBUG] Normalized name: $normalized_name" >> "$LOG_FILE"
+SKIPPED_LOG="$LOG_DIR/skipped_files.log"
+SYSTEM_LOG="$LOG_DIR/system.log"
 
-    # Überprüfen, ob der normalisierte Name in der CSV-Datei existiert
-    matches=$(grep -i "$normalized_name" "$VIDEO_IDS_CSV" | tr -d '"' | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g; s/[()]/_/g' | tr '[:upper:]' '[:lower:]')
+# Ensure directories and log files exist
+mkdir -p "$LOG_DIR"
+touch "$SKIPPED_LOG" "$SYSTEM_LOG"
 
-    if [[ -n "$matches" ]]; then
-        echo "[INFO] Match found for: $file" >> "$LOG_FILE"
-        echo "[DEBUG] Matching CSV rows:" >> "$LOG_FILE"
-        echo "$matches" >> "$LOG_FILE"
-    else
-        echo "[WARNING] No match for: $file" >> "$LOG_FILE"
-        echo "[DEBUG] CSV contents near match:" >> "$LOG_FILE"
-        grep -i "$(basename "$file" | cut -d'.' -f1)" "$VIDEO_IDS_CSV" >> "$LOG_FILE" || echo "[DEBUG] No similar entries found in CSV" >> "$LOG_FILE"
+log_debug "Directories and log files ensured: LOG_DIR=$LOG_DIR"
+
+# Function to normalize filenames
+normalize_filename() {
+    echo "$1" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]'
+}
+
+# Process each file in INPUT_DIR
+for file_path in "$INPUT_DIR"/*; do
+    if [[ -f "$file_path" ]]; then
+        file_name=$(basename "$file_path")
+        normalized_file_name=$(normalize_filename "$file_name")
+
+        log_debug "Processing file: $file_name (Normalized: $normalized_file_name)"
+
+        # Search for normalized name in CSV
+        found_in_csv=false
+        while IFS=',' read -r video_id src; do
+            csv_normalized_name=$(normalize_filename "$(basename "$src")")
+            if [[ "$normalized_file_name" == "$csv_normalized_name" ]]; then
+                found_in_csv=true
+                log_debug "Match found in CSV: $csv_normalized_name for Video ID: $video_id"
+                break
+            fi
+        done < <(tail -n +2 "$VIDEO_IDS_CSV")
+
+        if [[ "$found_in_csv" == false ]]; then
+            log_debug "No match found in CSV for file: $file_name"
+            echo "No match for $file_name" >> "$SKIPPED_LOG"
+        fi
     fi
 done
-
-echo "[INFO] Processing complete. Check $LOG_FILE for details."
