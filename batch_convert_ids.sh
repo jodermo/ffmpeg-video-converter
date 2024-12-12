@@ -42,12 +42,6 @@ THUMBNAIL_QUALITY="2"
 # Initialize CSV log
 echo "Timestamp,Video ID,Source,Thumbnail,Status" > "$CSV_LOG"
 
-for file in ./input_videos/*; do
-    mv "$file" "$(echo "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')"
-done
-
-sed -i 's/"//g' ./csv_data/convert_ids.csv
-
 
 # Function to check if a video ID has already been processed
 is_already_processed() {
