@@ -46,7 +46,7 @@ echo "Timestamp,Video ID,Source,Thumbnail,Status" > "$CSV_LOG"
 # Function to check if a video ID has already been processed
 is_already_processed() {
     local video_id="$1"
-    if grep -qF "$video_id" "$COMPLETED_LOG"; then
+    if grep -qF "$video_id" "$COMPLETED_LOG" || grep -qF "$video_id" "$CSV_LOG"; then
         return 0  # Already processed
     fi
     return 1  # Not processed
@@ -126,13 +126,19 @@ log_processed_file() {
 }
 
 # Main loop to process video sources
-# Main loop to process video sources
 tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
     log_debug "Processing video ID: $video_id, Source: $src"
 
     # Check if video ID is already processed
     if is_already_processed "$video_id"; then
-        log_debug "Skipping already processed video ID: $video_id"
+        log_debug "Video ID $video_id already processed. Fetching details from CSV_LOG."
+
+        # Extract details from CSV_LOG
+        existing_entry=$(grep -F "$video_id" "$CSV_LOG")
+        if [[ -n "$existing_entry" ]]; then
+            echo "$existing_entry" >> "$CSV_LOG"
+            log_debug "Re-logged entry: $existing_entry"
+        fi
         continue
     fi
 
