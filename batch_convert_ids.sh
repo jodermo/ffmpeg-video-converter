@@ -42,6 +42,12 @@ THUMBNAIL_QUALITY="2"
 # Initialize CSV log
 echo "Timestamp,Video ID,Source,Thumbnail,Status" > "$CSV_LOG"
 
+for file in ./input_videos/*; do
+    mv "$file" "$(echo "$file" | sed 's/ /_/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]')"
+done
+
+sed -i 's/"//g' ./csv_data/convert_ids.csv
+
 # Function to check if a file has already been processed
 is_already_processed() {
     local input_file="$1"
@@ -53,10 +59,9 @@ is_already_processed() {
 
 # Function to find the file in INPUT_DIR
 find_video_file() {
-    local src_filename="$1"
-    find "$INPUT_DIR" -type f -name "$(basename "$src_filename")" -print -quit
-    echo "$found_file"
+    find "$INPUT_DIR" -type f -iname "$(basename "$1")" -print -quit
 }
+
 
 # Function to convert video and generate thumbnail
 convert_video_file() {
@@ -143,10 +148,12 @@ tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
 
     # Check if file exists
     if [[ -z "$input_file" ]]; then
-        echo "Video file not found: $src_filename" | tee -a "$SKIPPED_LOG"
+        log_debug "Input file not found: $src_filename. Ensure the file name matches exactly."
+        echo "$src_filename" >> "$SKIPPED_LOG"
         log_processed_file "$video_id" "$src" "" "Skipped"
         continue
     fi
+
 
     # Detect orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$input_file")
