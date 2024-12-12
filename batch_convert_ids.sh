@@ -48,14 +48,16 @@ done
 
 sed -i 's/"//g' ./csv_data/convert_ids.csv
 
-# Function to check if a file has already been processed
+
+# Function to check if a video ID has already been processed
 is_already_processed() {
-    local input_file="$1"
-    if grep -qF "$(basename "$input_file")" "$COMPLETED_LOG"; then
-        return 0
+    local video_id="$1"
+    if grep -qF "$video_id" "$COMPLETED_LOG"; then
+        return 0  # Already processed
     fi
-    return 1
+    return 1  # Not processed
 }
+
 
 # Function to find the file in INPUT_DIR
 find_video_file() {
@@ -130,42 +132,39 @@ log_processed_file() {
 }
 
 # Main loop to process video sources
+# Main loop to process video sources
 tail -n +2 "$VIDEO_IDS_CSV" | while IFS=',' read -r video_id src; do
     log_debug "Processing video ID: $video_id, Source: $src"
 
+    # Check if video ID is already processed
+    if is_already_processed "$video_id"; then
+        log_debug "Skipping already processed video ID: $video_id"
+        continue
+    fi
+
+    # Remaining processing logic
     src_filename=$(basename "$src")
     input_file=$(find_video_file "$src_filename")
     output_file="$OUTPUT_DIR/$src_filename"
     thumbnail_file="$THUMBNAIL_DIR/${src_filename%.*}.jpg"
 
-    # Check if file is already processed
-    if is_already_processed "$src_filename"; then
-        # Use file from parent directory for CSV log
-        echo "Already processed: $src_filename" | tee -a "$SYSTEM_LOG"
-        log_processed_file "$video_id" "$input_file" "$thumbnail_file" "Already Processed"
-        continue
-    fi
-
-    # Check if file exists
     if [[ -z "$input_file" ]]; then
-        log_debug "Input file not found: $src_filename. Ensure the file name matches exactly."
-        echo "$src_filename" >> "$SKIPPED_LOG"
+        echo "Video file not found: $src_filename" | tee -a "$SKIPPED_LOG"
         log_processed_file "$video_id" "$src" "" "Skipped"
         continue
     fi
 
-
-    # Detect orientation
     resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$input_file")
     width=$(echo "$resolution" | cut -d',' -f1)
     height=$(echo "$resolution" | cut -d',' -f2)
 
+    is_portrait="false"
     if (( height > width )); then
         is_portrait="true"
-    else
-        is_portrait="false"
     fi
 
-    # Convert video and generate thumbnail
     convert_video_file "$video_id" "$input_file" "$is_portrait" "$output_file" "$thumbnail_file"
+
+    # Log successful processing
+    echo "$video_id" >> "$COMPLETED_LOG"
 done
