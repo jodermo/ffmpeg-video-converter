@@ -44,6 +44,10 @@ log_files_in_directory() {
     local log_file="$2"
     log_debug "Logging files in directory: $directory"
 
+    # Clear any previous temporary file
+    rm -f "$log_file.tmp"
+
+    # Process files
     find "$directory" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.wmv" \) ! -name '*Zone.Identifier' | while read -r file; do
         local filename normalized_filename
         filename=$(basename "$file")
@@ -51,10 +55,12 @@ log_files_in_directory() {
         echo "$normalized_filename,$filename" >> "$log_file.tmp"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$filename,$normalized_filename" >> "$log_file"
     done
+    log_debug "File logging complete. Temporary log created at $log_file.tmp."
 }
 
 # Process videos
 process_videos() {
+    log_debug "Starting video processing..."
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue
 
@@ -76,7 +82,8 @@ process_videos() {
     rm -f "$INPUT_FILES_LOG.tmp"
     log_debug "Video processing complete."
 }
-# Main script
-# setup_environment
+
+# Main script execution
+setup_environment
 log_files_in_directory "$INPUT_DIR" "$INPUT_FILES_LOG"
 process_videos
