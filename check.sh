@@ -40,6 +40,7 @@ normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
 }
 
+
 # Log all files in a directory
 log_files_in_directory() {
     local directory="$1"
