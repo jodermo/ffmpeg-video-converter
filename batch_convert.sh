@@ -96,12 +96,21 @@ process_video_file() {
 
 # Process all videos in the input directory
 process_all_videos() {
+    local total_files processed_files=0
+    total_files=$(find "$INPUT_DIR" -type f | wc -l)
+
     for file_path in "$INPUT_DIR"/*; do
         [[ -f "$file_path" ]] || continue
 
+        ((processed_files++))
         log_debug "Processing file: $file_path"
         process_video_file "$file_path"
+
+        # Update progress
+        local progress=$((processed_files * 100 / total_files))
+        printf "\rProcessing videos... %d%% (%d/%d completed)" "$progress" "$processed_files" "$total_files"
     done
+    echo "" # New line after progress bar
 }
 
 # Main script
