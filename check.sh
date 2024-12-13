@@ -71,7 +71,7 @@ process_videos() {
             log_debug "File found for Video ID: $video_id"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
         else
-            log_debug "File not found for Video ID: $video_id"
+            log_debug "File not found for Video ID: $video_id, src: $src, normalized_src: $normalized_src"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,$normalized_src,No,File not found in $INPUT_DIR" >> "$NOT_FOUND_LOG"
         fi
     done < "$VIDEO_IDS_CSV"
