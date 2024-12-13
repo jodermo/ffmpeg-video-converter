@@ -6,6 +6,7 @@ DEBUG=1
 # File Paths
 VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
 INPUT_DIR="./input_videos"
+OUTPUT_DIR="./output_videos"
 LOG_DIR="./logs"
 
 INPUT_FILES_LOG="$LOG_DIR/input_files_log.csv"
@@ -31,7 +32,7 @@ setup_environment() {
     log_debug "Environment setup complete: Directories and logs ensured."
 }
 
-# Normalize filenames (handle case sensitivity, special characters)
+# Normalize filenames
 normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' \
         | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]//g'
@@ -43,7 +44,7 @@ log_files_in_directory() {
     local log_file="$2"
     log_debug "Logging files in directory: $directory"
 
-    find "$directory" -type f ! -name '*Zone.Identifier' | while read -r file; do
+    find "$directory" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.wmv" \) ! -name '*Zone.Identifier' | while read -r file; do
         local filename normalized_filename
         filename=$(basename "$file")
         normalized_filename=$(normalize_filename "$filename")
@@ -64,7 +65,6 @@ process_videos() {
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue
 
-        # Remove extra quotes from CSV source and normalize
         local raw_src normalized_src
         raw_src=$(echo "$src" | tr -d '"')
         normalized_src=$(normalize_filename "$(basename "$raw_src")")
