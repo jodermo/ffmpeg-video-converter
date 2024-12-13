@@ -78,24 +78,36 @@ convert_video_and_log_status() {
 
 # Process videos with updated logging
 process_videos() {
+    log_debug "Starting video processing..."
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "Video ID" ]] && continue # Skip header row
-
+        
         local normalized_src input_file output_file thumbnail_file
         normalized_src=$(normalize_filename "$(basename "$src")")
         input_file=$(find "$INPUT_DIR" -type f -name "$normalized_src")
 
+        log_debug "Checking source file for Video ID: $video_id, Source: $src (Normalized: $normalized_src)"
+        
         if [[ -z "$input_file" ]]; then
             log_debug "Source file not found for Video ID: $video_id"
-            echo "$video_id,$src,No" >> "$STATUS_LOG"
+            echo "$video_id,$src,No,Source file not found" >> "$STATUS_LOG"
             continue
         fi
 
         output_file="$OUTPUT_DIR/${normalized_src%.*}.mp4"
         thumbnail_file="$THUMBNAIL_DIR/${normalized_src%.*}.jpg"
+
+        if [[ -f "$output_file" ]]; then
+            log_debug "Video already converted: $output_file"
+            echo "$video_id,$src,Yes,Already converted" >> "$STATUS_LOG"
+            continue
+        fi
+
         convert_video_and_log_status "$video_id" "$input_file" "$output_file" "$thumbnail_file"
     done < "$VIDEO_IDS_CSV"
+    log_debug "Video processing complete."
 }
+
 
 # Main script
 setup_environment
