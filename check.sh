@@ -84,6 +84,6 @@ process_videos() {
 }
 
 # Main script execution
-setup_environment
+# setup_environment
 log_files_in_directory "$INPUT_DIR" "$INPUT_FILES_LOG"
 process_videos
