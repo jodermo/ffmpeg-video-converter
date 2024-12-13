@@ -60,7 +60,7 @@ log_files_in_directory() {
 
 # Process videos
 process_videos() {
-    log_debug "Starting video processing..."
+    log_debug "Starting checking videos..."
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue
 
