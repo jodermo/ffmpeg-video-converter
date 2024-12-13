@@ -10,28 +10,42 @@ This scripts are designed to process all video files in a specified input direct
     - [output_videos/](./output_videos) : *Converted files*
     - [thumbnails/](./thumbnails): *Extracted thumbnails*
     - [logs/](./logs): *Output logs*
-    - [batch_convert.sh](./batch_convert.sh): *Bash file for linux and Mac*
-    - [reset_all.sh](./reset_all.sh): *Bash file for linux and Mac*
+    - [batch_convert.sh](./batch_convert.sh): *Convert all files inside input_videos to output_videos*
+    - [batch_convert_ids.sh](./batch_convert_ids.sh): *Convert based on CSV with video IDs: [id: number, src: string]*
+    - [batch_convert_table.sh](./batch_convert_table.sh): *Convert based on CSV for complex database tables*
+    - [check.sh](./check.sh): *Compare input_videos and output_videos and write log file*
+    - [reset_all.sh](./reset_all.sh): *Clear all logs and empty output_videos*
 
 1. Check the Script's Permissions
 Make sure the script has executable permissions. Run:
     - `chmod +x batch_convert.sh`
+    - `chmod +x batch_convert_ids.sh`
+    - `chmod +x batch_convert_table.sh`
+    - `chmod +x check.sh`
     - `chmod +x reset_all.sh`
 
-2. Drop your video data
-    - Drop `File.csv` to [csv_data/](./csv_data)
-    - Drop `video_sources.csv` to [csv_data/](./csv_data)
+2. A: Run Script (Convert all files inside input_videos to output_videos)
     - Drop your video files to [input_videos/](./input_videos)
-
-3. Run Script (without video source CSV)
     - Run: `bash batch_convert.sh`
 
-4. Watch result
+3. B: Run Script  (Convert based on CSV with video IDs: [id: number, src: string])
+    - Drop `convert_ids.csv` to [csv_data/](./csv_data)
+    - Drop your video files to [input_videos/](./input_videos)
+    - Run: `bash batch_convert_ids.sh`
+
+
+4. C: Run Script  (Convert based on CSV for complex database tables)
+    - Drop `File.csv` to  [csv_data/](./csv_data)
+    - Drop `video_sources.csv` to [csv_data/](./csv_data)
+    - Drop your video files to [input_videos/](./input_videos)
+    - Run: `bash batch_convert_table.sh`  
+
+5. Watch result
     - Converted videos in [output_videos/](./output_videos)
     - Generated thumbnails in [thumbnails/](./thumbnails)
     - Output logs in [logs/](./logs)
 
-4. Reset all, delete logs and generated stuff
+6. Reset all, delete logs and generated stuff
     - Run: `bash reset_all.sh`
 
 ## Install ffmpeg on linux
