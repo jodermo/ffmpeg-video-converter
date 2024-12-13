@@ -57,7 +57,7 @@ log_files_in_directory() {
 
 # Process videos and log found/not found
 process_videos() {
-    log_debug "Starting video processing..."
+    log_debug "Check for video files..."
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue # Skip header row
 
