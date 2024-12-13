@@ -69,7 +69,7 @@ process_videos() {
         raw_src=$(echo "$src" | tr -d '"')
         normalized_src=$(normalize_filename "$(basename "$raw_src")")
 
-        if [[ -v "normalized_input_files[$normalized_src]" ]]; then
+    if [[ "${normalized_input_files[$normalized_src]+exists}" == "exists" ]]; then
             log_debug "File found for Video ID: $video_id, src: $raw_src, normalized_src: $normalized_src"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$raw_src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
         else
