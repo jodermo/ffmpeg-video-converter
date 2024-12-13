@@ -5,7 +5,7 @@ DEBUG=1
 
 # File Paths
 VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
-INPUT_DIR="./input_videos"
+INPUT_DIR="./video_input"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
 LOG_DIR="./logs"
@@ -14,6 +14,7 @@ SKIPPED_LOG="$LOG_DIR/skipped_files.log"
 SYSTEM_LOG="$LOG_DIR/system.log"
 CSV_LOG="$LOG_DIR/conversion_log.csv"
 PROCESSED_LOG="$LOG_DIR/processed_videos.csv"
+SUMMARY_LOG="$LOG_DIR/summary.log"
 
 # Video parameters
 WIDTH="1280"
@@ -50,6 +51,11 @@ normalize_filename() {
         | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]//g'
 }
 
+# Create URL-friendly names
+create_url_friendly_name() {
+    local base_name="$1"
+    echo "$base_name" | sed -E 's/[^a-zA-Z0-9]/_/g' | tr '[:upper:]' '[:lower:]'
+}
 
 # Check if video is already converted
 is_video_already_converted() {
@@ -77,7 +83,6 @@ is_portrait_video() {
         echo "false"
     fi
 }
-
 
 # Convert video and generate thumbnail
 convert_video_file() {
@@ -149,14 +154,23 @@ convert_video_file() {
 
 # Process each video
 process_videos() {
+    local total_files current_file=0
+    total_files=$(find "$INPUT_DIR" -type f | wc -l)
+
+    local processed_count=0
+    local skipped_count=0
+    local failed_count=0
+
     for file_path in "$INPUT_DIR"/*; do
         [[ -f "$file_path" ]] || continue
+        ((current_file++))
 
-        local file_name normalized_file_name
+        local file_name normalized_file_name url_friendly_name
         file_name=$(basename "$file_path")
         normalized_file_name=$(normalize_filename "$file_name")
+        url_friendly_name=$(create_url_friendly_name "$normalized_file_name")
 
-        log_debug "Processing file: $file_name (Normalized: $normalized_file_name)"
+        log_debug "Processing file: $file_name (Normalized: $normalized_file_name, URL-friendly: $url_friendly_name) [$current_file/$total_files]"
 
         local found_in_csv=false
         while IFS=',' read -r video_id src; do
@@ -167,19 +181,36 @@ process_videos() {
                 log_debug "Match found in CSV: $csv_normalized_name for Video ID: $video_id"
 
                 local output_file thumbnail_file
-                output_file="$OUTPUT_DIR/${file_name%.*}.mp4"
-                thumbnail_file="$THUMBNAIL_DIR/${file_name%.*}.jpg"
+                output_file="$OUTPUT_DIR/${url_friendly_name}.mp4"
+                thumbnail_file="$THUMBNAIL_DIR/${url_friendly_name}.jpg"
 
-                convert_video_file "$video_id" "$file_path" "$output_file" "$thumbnail_file"
+                echo "[INFO] Processing video $current_file/$total_files: $file_name"
+                if convert_video_file "$video_id" "$file_path" "$output_file" "$thumbnail_file"; then
+                    ((processed_count++))
+                else
+                    ((failed_count++))
+                fi
                 break
             fi
         done < <(tail -n +2 "$VIDEO_IDS_CSV")
 
         if [[ "$found_in_csv" == false ]]; then
-            log_debug "No match found in CSV for file: $file_name"
+            log_debug "No match found in CSV for file: $file_name [$current_file/$total_files]"
             echo "No match for $file_name" >> "$SKIPPED_LOG"
+            ((skipped_count++))
         fi
     done
+
+    # Generate summary
+    echo "" > "$SUMMARY_LOG"
+    echo "Processing Summary:" >> "$SUMMARY_LOG"
+    echo "Total Videos Processed: $total_files" >> "$SUMMARY_LOG"
+    echo "Successfully Converted: $processed_count" >> "$SUMMARY_LOG"
+    echo "Skipped: $skipped_count" >> "$SUMMARY_LOG"
+    echo "Failed: $failed_count" >> "$SUMMARY_LOG"
+
+    echo "\nProcessing Summary:"
+    cat "$SUMMARY_LOG"
 }
 
 # Main script
