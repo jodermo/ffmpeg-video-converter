@@ -80,7 +80,7 @@ process_videos() {
 
     # Cleanup the temporary log file
     rm -f "$INPUT_FILES_LOG.tmp"
-    log_debug "Video processing complete."
+    log_debug "Video checking complete."
 }
 
 # Main script execution
