@@ -6,12 +6,17 @@ DEBUG=1
 # File Paths
 VIDEO_IDS_CSV="./csv_data/convert_ids.csv"
 INPUT_DIR="./input_videos"
+OUTPUT_DIR="./output_videos"
 LOG_DIR="./logs"
 
+INPUT_FILES_LOG="$LOG_DIR/input_files_log.csv"
+OUTPUT_FILES_LOG="$LOG_DIR/output_files_log.csv"
 FOUND_LOG="$LOG_DIR/found_log.csv"
 NOT_FOUND_LOG="$LOG_DIR/not_found_log.csv"
 
 # Headers
+INPUT_FILES_HEADER="Timestamp,Filename,Normalized Filename"
+OUTPUT_FILES_HEADER="Timestamp,Filename,Normalized Filename"
 FOUND_LOG_HEADER="Timestamp,Video ID,Source,Normalized Source,Found,Reason"
 NOT_FOUND_LOG_HEADER="Timestamp,Video ID,Source,Normalized Source,Found,Reason"
 
@@ -23,6 +28,8 @@ log_debug() {
 # Ensure directories and logs exist
 setup_environment() {
     mkdir -p "$LOG_DIR"
+    echo "$INPUT_FILES_HEADER" > "$INPUT_FILES_LOG"
+    echo "$OUTPUT_FILES_HEADER" > "$OUTPUT_FILES_LOG"
     echo "$FOUND_LOG_HEADER" > "$FOUND_LOG"
     echo "$NOT_FOUND_LOG_HEADER" > "$NOT_FOUND_LOG"
     log_debug "Environment setup complete: Directories and logs ensured."
@@ -31,6 +38,20 @@ setup_environment() {
 # Normalize filenames
 normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
+}
+
+# Log all files in a directory
+log_files_in_directory() {
+    local directory="$1"
+    local log_file="$2"
+    log_debug "Logging files in directory: $directory"
+
+    find "$directory" -type f | while read -r file; do
+        local filename normalized_filename
+        filename=$(basename "$file")
+        normalized_filename=$(normalize_filename "$filename")
+        echo "$(date "+%Y-%m-%d %H:%M:%S"),$filename,$normalized_filename" >> "$log_file"
+    done
 }
 
 # Process videos and log found/not found
@@ -58,4 +79,6 @@ process_videos() {
 
 # Main script
 setup_environment
+log_files_in_directory "$INPUT_DIR" "$INPUT_FILES_LOG"
+log_files_in_directory "$OUTPUT_DIR" "$OUTPUT_FILES_LOG"
 process_videos
