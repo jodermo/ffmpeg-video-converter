@@ -33,7 +33,6 @@ Make sure the script has executable permissions. Run:
     - Drop your video files to [input_videos/](./input_videos)
     - Run: `bash batch_convert_ids.sh`
 
-
 4. C: Run Script  (Convert based on CSV for complex database tables)
     - Drop `File.csv` to  [csv_data/](./csv_data)
     - Drop `video_sources.csv` to [csv_data/](./csv_data)
@@ -45,7 +44,13 @@ Make sure the script has executable permissions. Run:
     - Generated thumbnails in [thumbnails/](./thumbnails)
     - Output logs in [logs/](./logs)
 
-6. Reset all, delete logs and generated stuff
+6. Check and create logs for converted files
+    - Run: `bash batch_convert_table.sh`  
+    - Output logs in [logs/](./logs)
+        - `found_log.csv`
+        - `not_found_log.csv`
+
+7. Reset all, delete logs and generated stuff
     - Run: `bash reset_all.sh`
 
 ## Install ffmpeg on linux
