@@ -31,10 +31,10 @@ setup_environment() {
     log_debug "Environment setup complete: Directories and logs ensured."
 }
 
-# Normalize filenames
+# Normalize filenames (handle case sensitivity, special characters)
 normalize_filename() {
     echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' \
-        | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
+        | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]//g'
 }
 
 # Filter and log input files
@@ -64,15 +64,17 @@ process_videos() {
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue
 
-        local normalized_src
-        normalized_src=$(normalize_filename "$(basename "$src" | tr -d '\"')")
+        # Remove extra quotes from CSV source and normalize
+        local raw_src normalized_src
+        raw_src=$(echo "$src" | tr -d '"')
+        normalized_src=$(normalize_filename "$(basename "$raw_src")")
 
         if [[ -v "normalized_input_files[$normalized_src]" ]]; then
-            log_debug "File found for Video ID: $video_id, src: $src, normalized_src: $normalized_src"
-            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
+            log_debug "File found for Video ID: $video_id, src: $raw_src, normalized_src: $normalized_src"
+            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$raw_src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
         else
-            log_debug "File not found for Video ID: $video_id, src: $src, normalized_src: $normalized_src"
-            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,$normalized_src,No,File not found in $INPUT_DIR" >> "$NOT_FOUND_LOG"
+            log_debug "File not found for Video ID: $video_id, src: $raw_src, normalized_src: $normalized_src"
+            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$raw_src,$normalized_src,No,File not found in $INPUT_DIR" >> "$NOT_FOUND_LOG"
         fi
     done < "$VIDEO_IDS_CSV"
     log_debug "Video processing complete."

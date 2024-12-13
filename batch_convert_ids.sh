@@ -46,8 +46,10 @@ setup_environment() {
 
 # Normalize filenames
 normalize_filename() {
-    echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
+    echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' \
+        | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]//g'
 }
+
 
 # Check if video is already converted
 is_video_already_converted() {
