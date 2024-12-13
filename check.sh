@@ -33,16 +33,17 @@ setup_environment() {
 
 # Normalize filenames
 normalize_filename() {
-    echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
+    echo "$1" | sed -E 's/[[:space:]]+/_/g; s/[äÄ]/ae/g; s/[üÜ]/ue/g; s/[öÖ]/oe/g; s/ß/ss/g' \
+        | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9._-]//g'
 }
 
-# Log all files in a directory
+# Filter and log input files
 log_files_in_directory() {
     local directory="$1"
     local log_file="$2"
     log_debug "Logging files in directory: $directory"
 
-    find "$directory" -type f | while read -r file; do
+    find "$directory" -type f ! -name '*Zone.Identifier' | while read -r file; do
         local filename normalized_filename
         filename=$(basename "$file")
         normalized_filename=$(normalize_filename "$filename")
@@ -50,25 +51,22 @@ log_files_in_directory() {
     done
 }
 
-# Process videos and log found/not found
+# Process videos
 process_videos() {
-    log_debug "Processing video files against CSV entries..."
-
-    # Build an associative array of normalized input filenames
     declare -A normalized_input_files
+
+    # Build a map of normalized filenames in the input directory
     while IFS=',' read -r _ filename normalized_filename; do
         normalized_input_files["$normalized_filename"]="$filename"
     done < <(tail -n +2 "$INPUT_FILES_LOG")
 
     # Compare CSV entries with normalized filenames in the input directory
     while IFS=',' read -r video_id src; do
-        [[ "$video_id" == "\"id\"" ]] && continue # Skip header row
+        [[ "$video_id" == "\"id\"" ]] && continue
 
         local normalized_src
         normalized_src=$(normalize_filename "$(basename "$src" | tr -d '\"')")
 
-        log_debug "Checking normalized name for Video ID: $video_id, Source: $src (Normalized: $normalized_src)"
-        
         if [[ -v "normalized_input_files[$normalized_src]" ]]; then
             log_debug "File found for Video ID: $video_id"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
