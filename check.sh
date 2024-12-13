@@ -48,20 +48,13 @@ log_files_in_directory() {
         local filename normalized_filename
         filename=$(basename "$file")
         normalized_filename=$(normalize_filename "$filename")
+        echo "$normalized_filename,$filename" >> "$log_file.tmp"
         echo "$(date "+%Y-%m-%d %H:%M:%S"),$filename,$normalized_filename" >> "$log_file"
     done
 }
 
 # Process videos
 process_videos() {
-    declare -A normalized_input_files
-
-    # Build a map of normalized filenames in the input directory
-    while IFS=',' read -r _ filename normalized_filename; do
-        normalized_input_files["$normalized_filename"]="$filename"
-    done < <(tail -n +2 "$INPUT_FILES_LOG")
-
-    # Compare CSV entries with normalized filenames in the input directory
     while IFS=',' read -r video_id src; do
         [[ "$video_id" == "\"id\"" ]] && continue
 
@@ -69,7 +62,8 @@ process_videos() {
         raw_src=$(echo "$src" | tr -d '"')
         normalized_src=$(normalize_filename "$(basename "$raw_src")")
 
-    if [[ "${normalized_input_files[$normalized_src]+exists}" == "exists" ]]; then
+        # Check if the normalized file exists in the temporary log
+        if grep -q "^$normalized_src," "$INPUT_FILES_LOG.tmp"; then
             log_debug "File found for Video ID: $video_id, src: $raw_src, normalized_src: $normalized_src"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$raw_src,$normalized_src,Yes,File found" >> "$FOUND_LOG"
         else
@@ -77,10 +71,12 @@ process_videos() {
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$raw_src,$normalized_src,No,File not found in $INPUT_DIR" >> "$NOT_FOUND_LOG"
         fi
     done < "$VIDEO_IDS_CSV"
+
+    # Cleanup the temporary log file
+    rm -f "$INPUT_FILES_LOG.tmp"
     log_debug "Video processing complete."
 }
-
 # Main script
-setup_environment
+# setup_environment
 log_files_in_directory "$INPUT_DIR" "$INPUT_FILES_LOG"
 process_videos
