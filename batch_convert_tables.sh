@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # File Paths
-FILES_CSV="./csv_data/files.csv"
-VIDEO_SOURCES_CSV="./csv_data/video_sources.csv"
+COMBINED_CSV="./csv_data/combined.csv"
 INPUT_DIR="./input_videos"
 OUTPUT_DIR="./output_videos"
 THUMBNAIL_DIR="./thumbnails"
@@ -14,12 +13,14 @@ CSV_LOG="$LOG_DIR/conversion_log.csv"
 PROCESSED_LOG="$LOG_DIR/processed_videos.csv"
 SUMMARY_LOG="$LOG_DIR/summary.log"
 
+
 # Video parameters
 WIDTH="1280"
 HEIGHT="720"
 QUALITY="30"
 PRESET="slow"
 AUDIO_BITRATE="128k"
+
 
 # Thumbnail parameters
 THUMBNAIL_TIME="00:00:02"
@@ -40,50 +41,79 @@ normalize_filename() {
         | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]//g'
 }
 
-# Create URL-friendly names
-create_url_friendly_name() {
-    local base_name="$1"
-    echo "$base_name" | sed -E 's/[^a-zA-Z0-9]/_/g' | tr '[:upper:]' '[:lower:]'
+# Preload combined CSV into an associative array
+preload_combined_csv() {
+    declare -gA COMBINED_MAP
+
+    while IFS=',' read -r video_id video_src video_fileId file_id file_originalname file_key file_path; do
+        normalized_path=$(normalize_filename "$file_path")
+        normalized_originalname=$(normalize_filename "$file_originalname")
+        
+        # Extract the last segment of video.src for fallback matching
+        video_src_basename=$(normalize_filename "$(basename "$video_src")")
+
+        # Log processed entries for debugging
+        echo "DEBUG: Adding to COMBINED_MAP - Path: $file_path -> $normalized_path, Originalname: $file_originalname -> $normalized_originalname, VideoSrc: $video_src_basename" | tee -a "$SYSTEM_LOG"
+
+        # Populate the map
+        [[ -n "$normalized_path" ]] && COMBINED_MAP["$normalized_path"]="$video_id,$video_src,$file_id,$file_originalname,$file_key"
+        [[ -n "$normalized_originalname" ]] && COMBINED_MAP["$normalized_originalname"]="$video_id,$video_src,$file_id,$file_originalname,$file_key"
+        [[ -n "$video_src_basename" ]] && COMBINED_MAP["$video_src_basename"]="$video_id,$video_src,$file_id,$file_originalname,$file_key"
+    done < <(tail -n +2 "$COMBINED_CSV")
+
+    echo "Loaded ${#COMBINED_MAP[@]} entries from combined.csv." | tee -a "$SYSTEM_LOG"
 }
 
 
-# Preload video_sources.csv into an associative array
-preload_video_sources() {
-    declare -gA VIDEO_MAP
-    while IFS=',' read -r id src name; do
-        csv_basename=$(normalize_filename "$(basename "$src")")
-        VIDEO_MAP["$csv_basename"]="$id,$src,$name"
-    done < <(tail -n +2 "$VIDEO_SOURCES_CSV")
-    echo "Loaded $((${#VIDEO_MAP[@]})) entries from video_sources.csv." | tee -a "$SYSTEM_LOG"
-}
 
 # Process videos
 process_videos() {
-    local total=0 processed=0 skipped=0
+    # Initialize counters as integers
+    local -i total=0
+    local -i processed=0
+    local -i skipped=0
 
-    for input_file in "$INPUT_DIR"/*.mp4; do
-        ((total++))
+    echo "DEBUG: Starting video processing..." | tee -a "$SYSTEM_LOG"
+
+    find "$INPUT_DIR" -type f -name "*.mp4" -print0 | while IFS= read -r -d '' input_file; do
+        ((total++)) # Increment total for each file found
         local filename=$(basename "$input_file")
         local normalized=$(normalize_filename "$filename")
-        local video_data=${VIDEO_MAP["$normalized"]}
-        local url_friendly_name=$(create_url_friendly_name "$normalized")
 
+        echo "DEBUG: Checking input file - Original: $filename, Normalized: $normalized" | tee -a "$SYSTEM_LOG"
+
+        # Check for direct match in COMBINED_MAP
+        local video_data=${COMBINED_MAP["$normalized"]}
+
+        # If no match, fallback to match normalized video.src basename
         if [[ -z "$video_data" ]]; then
-            echo "Skipping: No match found in CSV for $filename" | tee -a "$SYSTEM_LOG"
+            echo "DEBUG: No direct match for $normalized. Attempting fallback to video.src..." | tee -a "$SYSTEM_LOG"
+            for key in "${!COMBINED_MAP[@]}"; do
+                if [[ "$key" == "$normalized" ]]; then
+                    video_data=${COMBINED_MAP["$key"]}
+                    echo "DEBUG: Match found via video.src fallback - Key: $key -> $video_data" | tee -a "$SYSTEM_LOG"
+                    break
+                fi
+            done
+        fi
+
+        # Skip if no match is found
+        if [[ -z "$video_data" ]]; then
+            echo "Skipping: No match found for $filename (Normalized: $normalized)" | tee -a "$SYSTEM_LOG"
             echo "$filename" >> "$SKIPPED_LOG"
             ((skipped++))
             continue
         fi
 
-        IFS=',' read -r video_id video_src video_name <<< "$video_data"
-        local output_file="$OUTPUT_DIR/${url_friendly_name}.mp4"
-        local thumbnail_file="$THUMBNAIL_DIR/${url_friendly_name}.jpg"
+        # Extract details and process the file
+        IFS=',' read -r video_id video_src file_id file_originalname file_key <<< "$video_data"
+        local output_file="$OUTPUT_DIR/${normalized}.mp4"
+        local thumbnail_file="$THUMBNAIL_DIR/${normalized}.jpg"
 
-        echo "Processing: $video_src | ID: $video_id | Name: $video_name" | tee -a "$SYSTEM_LOG"
-
-        # Convert video
+        # Convert video with progress
         echo "Converting video: $filename" | tee -a "$SYSTEM_LOG"
-        total_duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+        local duration
+        duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
             -of default=noprint_wrappers=1:nokey=1 "$input_file" | awk '{printf "%.0f\n", $1}')
 
         ffmpeg -y -i "$input_file" \
@@ -93,34 +123,34 @@ process_videos() {
             -progress pipe:1 2>&1 | while IFS="=" read -r key value; do
                 if [[ "$key" == "out_time_us" ]]; then
                     local current_time=$((value / 1000000))
-                    local progress=$((current_time * 100 / total_duration))
-                    printf "\rProcessing ID: %s, Video: %s [%d%%]" "$video_id" "$(basename "$input_file")" "$progress"
+                    local progress=$((current_time * 100 / duration))
+                    printf "\rProcessing ID: %s, Video: %s [%d%%]" "$video_id" "$filename" "$progress"
                 fi
             done
 
-        echo "" # Print a newline after progress
+        echo "" # New line after progress bar
 
         if [[ $? -eq 0 ]]; then
-            echo "Conversion succeeded: $output_file" | tee -a "$SYSTEM_LOG"
-            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$video_src,Success" >> "$CSV_LOG"
-            echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
-            ((processed++))
+            echo "Video conversion succeeded: $output_file" | tee -a "$SYSTEM_LOG"
         else
-            echo "Conversion failed: $filename" | tee -a "$SYSTEM_LOG"
+            echo "Video conversion failed: $filename" | tee -a "$SYSTEM_LOG"
             echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$video_src,Failed" >> "$CSV_LOG"
+            ((skipped++))
             continue
         fi
 
         # Generate thumbnail
         echo "Generating thumbnail for: $filename" | tee -a "$SYSTEM_LOG"
-        ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" > /dev/null 2>&1
+        ffmpeg -y -i "$output_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" >> "$SYSTEM_LOG" 2>&1
         if [[ $? -eq 0 ]]; then
             echo "Thumbnail generated: $thumbnail_file" | tee -a "$SYSTEM_LOG"
+            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$output_file,Success" >> "$CSV_LOG"
+            echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
+            ((processed++))
         else
-            echo "Thumbnail generation failed for: $filename" | tee -a "$SYSTEM_LOG"
+            echo "Thumbnail generation failed: $filename" | tee -a "$SYSTEM_LOG"
+            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$output_file,Thumbnail Failed" >> "$CSV_LOG"
         fi
-
-        echo ""
     done
 
     # Summary
@@ -131,7 +161,10 @@ process_videos() {
 }
 
 
+
+
+
 # Main script
 setup_environment
-preload_video_sources
+preload_combined_csv
 process_videos
