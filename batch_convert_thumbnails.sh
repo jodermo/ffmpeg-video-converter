@@ -80,37 +80,7 @@ process_videos() {
         local thumbnail_file="$THUMBNAIL_DIR/${url_friendly_name}.jpg"
 
         echo "Processing: $video_src | ID: $video_id | Name: $video_name" | tee -a "$SYSTEM_LOG"
-
-        # Convert video
-        echo "Converting video: $filename" | tee -a "$SYSTEM_LOG"
-        total_duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
-            -of default=noprint_wrappers=1:nokey=1 "$input_file" | awk '{printf "%.0f\n", $1}')
-
-        ffmpeg -y -i "$input_file" \
-            -vf "scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2" \
-            -c:v libx264 -preset "$PRESET" -crf "$QUALITY" \
-            -c:a aac -b:a "$AUDIO_BITRATE" -movflags +faststart "$output_file" \
-            -progress pipe:1 2>&1 | while IFS="=" read -r key value; do
-                if [[ "$key" == "out_time_us" ]]; then
-                    local current_time=$((value / 1000000))
-                    local progress=$((current_time * 100 / total_duration))
-                    printf "\rProcessing ID: %s, Video: %s [%d%%]" "$video_id" "$(basename "$input_file")" "$progress"
-                fi
-            done
-
-        echo "" # Print a newline after progress
-
-        if [[ $? -eq 0 ]]; then
-            echo "Conversion succeeded: $output_file" | tee -a "$SYSTEM_LOG"
-            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$video_src,Success" >> "$CSV_LOG"
-            echo "$video_id,$output_file,$thumbnail_file" >> "$PROCESSED_LOG"
-            ((processed++))
-        else
-            echo "Conversion failed: $filename" | tee -a "$SYSTEM_LOG"
-            echo "$(date "+%Y-%m-%d %H:%M:%S"),$video_id,$video_src,Failed" >> "$CSV_LOG"
-            continue
-        fi
-
+        
         # Generate thumbnail
         echo "Generating thumbnail for: $filename" | tee -a "$SYSTEM_LOG"
         ffmpeg -y -i "$input_file" -ss "$THUMBNAIL_TIME" -vframes 1 -q:v "$THUMBNAIL_QUALITY" "$thumbnail_file" > /dev/null 2>&1

@@ -13,6 +13,7 @@ This scripts are designed to process all video files in a specified input direct
     - [batch_convert.sh](./batch_convert.sh): *Convert all files inside input_videos to output_videos*
     - [batch_convert_ids.sh](./batch_convert_ids.sh): *Convert based on CSV with video IDs: [id: number, src: string]*
     - [batch_convert_tables.sh](./batch_convert_tables.sh): *Convert based on CSV for complex database tables*
+    - [batch_convert_thumbnails.sh](./batch_convert_thumbnails.sh): *Convert based on CSV for complex database tables, but thumbnails only*
     - [check.sh](./check.sh): *Compare input_videos and output_videos and write log file*
     - [reset_all.sh](./reset_all.sh): *Clear all logs and empty output_videos*
 
@@ -21,6 +22,7 @@ Make sure the script has executable permissions. Run:
     - `chmod +x batch_convert.sh`
     - `chmod +x batch_convert_ids.sh`
     - `chmod +x batch_convert_tables.sh`
+    - `chmod +x batch_convert_thumbnails.sh`
     - `chmod +x check.sh`
     - `chmod +x reset_all.sh`
 
@@ -34,10 +36,11 @@ Make sure the script has executable permissions. Run:
     - Run: `bash batch_convert_ids.sh`
 
 4. C: Run Script  (Convert based on CSV for complex database tables)
-    - Drop `File.csv` to  [csv_data/](./csv_data)
+    - Drop `files.csv` to  [csv_data/](./csv_data)
     - Drop `video_sources.csv` to [csv_data/](./csv_data)
     - Drop your video files to [input_videos/](./input_videos)
-    - Run: `bash batch_convert_tables.sh`  
+    - Run: `bash batch_convert_tables.sh` for videos and thumbnails
+    - Run: `bash batch_convert_thumbnails.sh` for thumbnails only
 
 5. Watch result
     - Converted videos in [output_videos/](./output_videos)

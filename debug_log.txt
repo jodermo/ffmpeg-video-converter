@@ -1,0 +1,20 @@
+[INFO] Processing file: input_videos/HDI_Employee_Interviews_2021_Azubi_Mileva_220413_1.mp4
+[DEBUG] Normalized name: hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+[INFO] Match found for: input_videos/HDI_Employee_Interviews_2021_Azubi_Mileva_220413_1.mp4
+[DEBUG] Matching CSV row: 229,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+252,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+246,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+239,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+220,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+225,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+231,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+232,hdi_employee_interviews_2021_azubi_mileva_220413_1.mp4
+[INFO] Processing file: input_videos/hellmann_fachkraft_fuer_lagerlogistik_(1).mp4
+[DEBUG] Normalized name: hellmann_fachkraft_fuer_lagerlogistik_(1).mp4
+[WARNING] No match for: input_videos/hellmann_fachkraft_fuer_lagerlogistik_(1).mp4
+[INFO] Processing file: input_videos/Hellmann Fachkraft für Lagerlogistik (1).mp4
+[DEBUG] Normalized name: hellmann_fachkraft_fuer_lagerlogistik_(1).mp4
+[WARNING] No match for: input_videos/Hellmann Fachkraft für Lagerlogistik (1).mp4
+[INFO] Processing file: input_videos/ZEG -klein - bew. dich bei fachhaendler.mp4
+[DEBUG] Normalized name: zeg_-klein_-_bew._dich_bei_fachhaendler.mp4
+[WARNING] No match for: input_videos/ZEG -klein - bew. dich bei fachhaendler.mp4
