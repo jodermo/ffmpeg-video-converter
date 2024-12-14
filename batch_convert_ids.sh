@@ -170,7 +170,7 @@ process_videos() {
         normalized_file_name=$(normalize_filename "$file_name")
         url_friendly_name=$(create_url_friendly_name "$normalized_file_name")
 
-        log_debug "Processing file: $file_name (Normalized: $normalized_file_name, URL-friendly: $url_friendly_name) [$current_file/$total_files]"
+        log_debug "Processing $video_id, file: $file_name (Normalized: $normalized_file_name, URL-friendly: $url_friendly_name) [$current_file/$total_files]"
 
         local found_in_csv=false
         while IFS=',' read -r video_id src; do
@@ -184,7 +184,7 @@ process_videos() {
                 output_file="$OUTPUT_DIR/${url_friendly_name}.mp4"
                 thumbnail_file="$THUMBNAIL_DIR/${url_friendly_name}.jpg"
 
-                echo "[INFO] Processing video $current_file/$total_files: $file_name"
+                echo "[INFO] Processing video $video_id $current_file/$total_files: $file_name"
                 if convert_video_file "$video_id" "$file_path" "$output_file" "$thumbnail_file"; then
                     ((processed_count++))
                 else
@@ -196,7 +196,7 @@ process_videos() {
 
         if [[ "$found_in_csv" == false ]]; then
             log_debug "No match found in CSV for file: $file_name [$current_file/$total_files]"
-            echo "No match for $file_name" >> "$SKIPPED_LOG"
+            echo "No match for $video_id $file_name" >> "$SKIPPED_LOG"
             ((skipped_count++))
         fi
     done
