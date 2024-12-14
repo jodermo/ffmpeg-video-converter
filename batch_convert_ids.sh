@@ -29,7 +29,7 @@ THUMBNAIL_QUALITY="2"
 
 # Headers
 CSV_HEADER="Timestamp,Video ID,Source,Thumbnail,Status"
-PROCESSED_HEADER="Video ID,Output Source,Thumbnail Path"
+PROCESSED_HEADER="id,src,thumbnail"
 
 # Debug log function
 log_debug() {

@@ -30,7 +30,7 @@ setup_environment() {
     mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$THUMBNAIL_DIR"
     touch "$SKIPPED_LOG" "$SYSTEM_LOG"
     [[ ! -s "$CSV_LOG" ]] && echo "Timestamp,Video ID,Source,Status" > "$CSV_LOG"
-    [[ ! -s "$PROCESSED_LOG" ]] && echo "Video ID,Output File,Thumbnail File" > "$PROCESSED_LOG"
+    [[ ! -s "$PROCESSED_LOG" ]] && echo "id,src,thumbnail" > "$PROCESSED_LOG"
     echo "Environment initialized: Directories and logs are set up." | tee -a "$SYSTEM_LOG"
 }
 
